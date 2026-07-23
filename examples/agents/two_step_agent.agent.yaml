@@ -1,0 +1,24 @@
+agent_id: two_step_agent
+display_name: Two Step Agent
+version: 1
+entry:
+  method: invoke
+  sync: true
+graph:
+  entry: step_one
+  nodes:
+    - id: step_one
+      type: set_value
+      field: step
+      value: 1
+    - id: step_two
+      type: set_value
+      field: label
+      template: "step={step} msg={message}"
+    - id: finish
+      type: echo_result
+      from_fields: [step, label, message]
+  edges:
+    - [step_one, step_two]
+    - [step_two, finish]
+    - [finish, END]

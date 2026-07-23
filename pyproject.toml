@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edim-dde-ai"
+dynamic = ["version"]
+description = "YAML-driven LangGraph agent framework for EDIM AI agents"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "EDIM" }]
+keywords = ["yaml", "langgraph", "agents", "edim"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+]
+dependencies = [
+  "langgraph>=0.2",
+  "langchain-core>=0.3",
+  "PyYAML>=6",
+]
+
+[project.urls]
+Homepage = "https://github.com/sabbineni07/edim-dde-ai"
+Repository = "https://github.com/sabbineni07/edim-dde-ai"
+Documentation = "https://github.com/sabbineni07/edim-dde-ai/tree/main/docs"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "build>=1.0"]
+release = ["build>=1.0", "twine>=5.0"]
+
+[project.scripts]
+edim-dde-ai = "edim_dde_ai.cli:main"
+
+[tool.hatch.version]
+path = "src/edim_dde_ai/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edim_dde_ai"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/examples",
+  "/docs",
+  "/tests",
+  "/README.md",
+  "/LICENSE",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

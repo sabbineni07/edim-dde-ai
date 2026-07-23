@@ -1,0 +1,32 @@
+---
+description: GoF and package conventions for edim_dde_ai Python code
+globs: "**/edim_dde_ai/**/*.py"
+alwaysApply: false
+---
+
+# Python package conventions
+
+## Extension points
+
+```python
+from edim_dde_ai import register_node
+
+@register_node("my_type")
+def my_type(config):
+    def _node(state: dict) -> dict:
+        return {"ok": True}
+    return _node
+```
+
+- Nodes: factory `(config) -> (state) -> partial_state`
+- Routers: `(state) -> str` label matched in conditional edge mapping
+- Chains: `(state, config) -> Any` for `llm_chain`
+
+## Design habits
+
+- New catalogs → generic `Registry[T]` (Strategy), not ad-hoc dicts.
+- Graph assembly changes → `GraphBuilder` steps, not one-off compile scripts.
+- LangGraph state wrapping stays in `graph/adapters.py`.
+- Public exports go through `__init__.py` `__all__` deliberately.
+- Prefer typed errors from `errors.py` over bare `ValueError` for user-facing failures.
+- Do not introduce dynamic imports from config strings.

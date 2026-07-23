@@ -1,0 +1,5 @@
+# Release / publish tools (keep in sync with pyproject.toml [project.optional-dependencies].release)
+# Install: pip install -r requirements-release.txt
+# or: pip install 'edim-dde-ai[release]'
+build>=1.0
+twine>=5.0

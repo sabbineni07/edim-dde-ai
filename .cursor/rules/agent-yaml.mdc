@@ -1,0 +1,33 @@
+---
+description: Conventions for *.agent.yaml and agent definition schemas
+globs: "**/*.{yaml,yml}"
+alwaysApply: false
+---
+
+# Agent YAML conventions
+
+## Required shape
+
+```yaml
+agent_id: my_agent          # required
+display_name: My Agent      # optional
+version: 1                  # optional
+graph:
+  entry: start              # required node id
+  nodes:
+    - id: start
+      type: set_value       # must be a registered node type
+      field: stage
+      value: begun
+  edges:
+    - [start, END]
+```
+
+## Rules
+
+- Extra keys on a node (beyond `id` / `type`) become `NodeSpec.config`.
+- Edge targets may be node ids or `END`.
+- Conditional edges use `source`, `router` (registered id), and `mapping`.
+- Prefer `*.agent.yaml` under agent directories (loader default pattern).
+- Do not put Python module paths or callables in YAML.
+- Keep product-specific topology in consuming projects, not foundation examples, unless illustrating the framework.

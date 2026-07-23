@@ -1,0 +1,42 @@
+---
+description: EDIM DDE AI — YAML-driven agents framework architecture
+alwaysApply: true
+---
+
+# EDIM DDE AI
+
+Generic **YAML-composed / Python-implemented** LangGraph agents framework.
+API and UI are out of scope — this package is the runtime wheel only.
+
+## Hybrid model (non-negotiable)
+
+| Layer | Responsibility |
+|-------|----------------|
+| YAML / dict / JSON | Topology + node config (`agent_id`, nodes, edges, conditional_edges) |
+| Python registries | Node factories, routers, chain invokers behind allowlisted string ids |
+
+- YAML **never** carries import paths, class names, or executable code.
+- Extend behavior with `@register_node` / `register_router` / `register_chain_invoker`, then reference ids in YAML.
+
+## GoF patterns to prefer
+
+- **Registry** — keyed catalogs (`registry/base.py`); seed + clear for tests
+- **Strategy** — swappable node/router/chain algorithms by id
+- **Builder** — `GraphBuilder` for stepwise compile
+- **Factory** — `AgentFactory.create` → `MetadataAgent`
+- **Adapter** — flat dict ↔ LangGraph `AgentState.data`
+- **Facade** — keep `edim_dde_ai.__all__` stable
+
+Avoid DI containers, Observer sprawl, and Abstract Factory unless there is a clear multi-runtime need.
+
+## Package layout
+
+`core/` (definition+loader) → `registry/` → `factories/` + `graph/` → `nodes/` + `api/` + `cli/`
+
+## When adding features
+
+1. Prefer config-driven composition over new hard-coded graphs in the package.
+2. Parse/validate at the boundary (`core/definition.py`); keep definitions frozen.
+3. Resolve unknown type/router ids as early as validate/build — not only at invoke.
+4. Add pytest coverage; rely on `conftest` registry reset.
+5. Do not bake product agents (RCA, cluster tuning) into foundation builtins.

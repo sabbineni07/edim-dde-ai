@@ -1,0 +1,6 @@
+# Dev / test / build tools (keep in sync with pyproject.toml [project.optional-dependencies].dev)
+# For publish/twine, use: pip install twine  OR  pip install 'edim-dde-ai[release]'
+# or: pip install -r requirements-release.txt
+-r requirements.txt
+pytest>=8
+build>=1.0

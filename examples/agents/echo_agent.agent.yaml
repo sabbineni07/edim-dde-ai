@@ -1,0 +1,19 @@
+agent_id: echo_agent
+display_name: Echo Agent
+version: 1
+entry:
+  method: invoke
+  sync: true
+graph:
+  entry: greet
+  nodes:
+    - id: greet
+      type: set_value
+      field: greeting
+      value: "hello"
+    - id: finish
+      type: echo_result
+      from_fields: [greeting, message]
+  edges:
+    - [greet, finish]
+    - [finish, END]
