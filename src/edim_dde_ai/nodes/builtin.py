@@ -3,7 +3,8 @@
 Factories registered under ids such as ``passthrough``, ``set_value``, and
 ``llm_chain``. Each is ``(config) -> (state) -> partial_updates``.
 
-``llm_chain`` resolves a chain invoker by name at node-call time.
+``llm_chain`` prefers a registered chain invoker; otherwise builds messages
+from content providers and calls ``LLMProvider``.
 Product agents add more types via ``register_node``.
 """
 
@@ -13,7 +14,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from edim_dde_ai.registry.chains import get_chain_invoker
+from edim_dde_ai.content.messages import build_chat_messages
+from edim_dde_ai.content.registry import get_llm_provider
+from edim_dde_ai.errors import ChainInvokerError
+from edim_dde_ai.registry.chains import get_chain_invoker, list_chain_invokers
 
 _TEMPLATE_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
@@ -64,11 +68,35 @@ def llm_chain_factory(config: dict[str, Any]):
     if not isinstance(chain, str) or not chain:
         raise ValueError("llm_chain requires 'chain' name")
     output_key = config.get("output_key", "llm_raw")
+    attach_skills = bool(config.get("attach_skills", False))
+    agent_id = config.get("agent_id")
 
     def _node(state: dict[str, Any]) -> dict[str, Any]:
-        invoker = get_chain_invoker(chain)
-        value = invoker(state, config)
-        return {output_key: value}
+        # Custom invoker wins when registered for this chain name.
+        if chain in list_chain_invokers():
+            invoker = get_chain_invoker(chain)
+            value = invoker(state, config)
+            return {output_key: value}
+
+        if not agent_id:
+            raise ChainInvokerError(
+                f"No invoker for '{chain}' and no agent_id on llm_chain config "
+                "(GraphBuilder injects agent_id; ensure the node was built via GraphBuilder)."
+            )
+        llm = get_llm_provider()
+        if llm is None:
+            raise ChainInvokerError(
+                f"No chain invoker registered for '{chain}' and no LLMProvider set. "
+                "Register one with register_chain_invoker() or set_llm_provider()."
+            )
+        messages = build_chat_messages(
+            agent_id=str(agent_id),
+            chain=chain,
+            state=state,
+            attach_skills=attach_skills,
+        )
+        text = llm.invoke(messages, config=config)
+        return {output_key: text}
 
     return _node
 

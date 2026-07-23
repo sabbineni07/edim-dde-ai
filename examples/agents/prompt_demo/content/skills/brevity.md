@@ -1,0 +1,3 @@
+# Brevity
+
+Keep answers short.

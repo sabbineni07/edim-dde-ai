@@ -1,0 +1,30 @@
+agent_id: conditional_agent
+display_name: Conditional Agent
+version: 1
+entry:
+  method: invoke
+  sync: true
+graph:
+  entry: decide
+  nodes:
+    - id: decide
+      type: passthrough
+    - id: details
+      type: set_value
+      field: branch_message
+      value: "full details path"
+    - id: summary
+      type: set_value
+      field: branch_message
+      value: "brief summary path"
+  edges:
+    - [details, END]
+    - [summary, END]
+  conditional_edges:
+    - source: decide
+      router: field_truthy
+      config:
+        field: include_details
+      mapping:
+        "yes": details
+        "no": summary

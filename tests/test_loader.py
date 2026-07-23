@@ -12,6 +12,8 @@ def test_load_yaml():
     defn = load_yaml(EXAMPLES / "echo_agent.agent.yaml")
     assert defn.agent_id == "echo_agent"
     assert defn.nodes[0].type == "set_value"
+    assert defn.source_path is not None
+    assert defn.source_path.endswith("echo_agent.agent.yaml")
 
 
 def test_load_paths():

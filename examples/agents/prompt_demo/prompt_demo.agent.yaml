@@ -1,0 +1,16 @@
+agent_id: prompt_demo
+display_name: Prompt directory demo
+version: 1
+
+content_dir: ./content
+
+graph:
+  entry: call
+  nodes:
+    - id: call
+      type: llm_chain
+      chain: chat
+      output_key: llm_raw
+      attach_skills: true
+  edges:
+    - [call, END]

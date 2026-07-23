@@ -14,6 +14,7 @@ Example::
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
@@ -40,11 +41,17 @@ def _read_yaml(path: Path) -> dict:
 
 
 def load_yaml(path: str | Path) -> AgentDefinition:
-    """Load and validate a single agent YAML file."""
+    """Load and validate a single agent YAML file.
+
+    Sets ``AgentDefinition.source_path`` to the resolved file path so relative
+    ``content_dir`` entries can be resolved at ``register_agent`` time.
+    """
     p = Path(path)
     if not p.is_file():
         raise LoaderError(f"Not a file: {p}")
-    return parse_agent_definition(_read_yaml(p))
+    resolved = p.resolve()
+    definition = parse_agent_definition(_read_yaml(resolved))
+    return replace(definition, source_path=str(resolved))
 
 
 def load_paths(paths: Iterable[str | Path]) -> list[AgentDefinition]:

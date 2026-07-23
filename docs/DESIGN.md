@@ -39,6 +39,7 @@ edim_dde_ai/
   errors.py            # shared exceptions
   version.py
   core/                # definition + YAML loading
+  content/             # PromptProvider / SkillProvider / LLMProvider + ContentHub
   registry/            # Registry base + agents, nodes, chains, routers
   factories/           # AgentFactory
   graph/               # Builder, adapters, MetadataAgent runtime
@@ -105,8 +106,26 @@ Example YAML::
 
 ### Chain invokers (`registry/chains.py`)
 
-- `llm_chain` nodes look up a pluggable invoker by `chain` name.
-- LLM is optional; missing invoker raises a clear error.
+- `llm_chain` nodes look up a pluggable invoker by `chain` name **first**.
+- If no invoker is registered, messages are built from content providers and
+  `LLMProvider.invoke` is called (must be set via `set_llm_provider`).
+- Missing both invoker and LLMProvider raises `ChainInvokerError`.
+
+### Content providers (`content/`)
+
+Process-wide hooks for prompts, skills, and LLM calls (no database in this package):
+
+| Piece | Role |
+|-------|------|
+| `PromptProvider` / `SkillProvider` / `LLMProvider` | Protocols |
+| `ContentHub` | Default prompt+skill provider: optional user override → per-agent `content_dir` → inline store |
+| `InlineContentStore` | YAML `prompts:` / `skills:` merged on `register_agent` |
+| `DirectoryContentProvider` | `prompts/{chain}.{role}.md`, `skills/{key}.md` |
+| `build_chat_messages` | Load roles, `{var}` substitution from state, optional skill appendix |
+
+`AgentDefinition.source_path` is set by `load_yaml` so relative `content_dir` resolves next to the agent YAML.
+
+`GraphBuilder` injects `agent_id` into each node config so `llm_chain` can resolve content.
 
 ### Entry points (`api/entrypoints.py`)
 

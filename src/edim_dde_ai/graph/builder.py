@@ -50,7 +50,9 @@ class GraphBuilder:
     def add_nodes(self) -> GraphBuilder:
         for node in self.definition.nodes:
             factory = get_node_factory(node.type)
-            runnable = factory(dict(node.config))
+            cfg = dict(node.config)
+            cfg.setdefault("agent_id", self.definition.agent_id)
+            runnable = factory(cfg)
             self._builder.add_node(node.id, adapt_node(runnable))
         return self
 

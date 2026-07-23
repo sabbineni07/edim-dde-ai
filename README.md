@@ -44,7 +44,7 @@ YAML **composes**; Python **implements**. YAML never specifies arbitrary import 
 - Loaders: single YAML file, multiple paths, a directory of `*.agent.yaml`, or dict/JSON (`register_from_dict` / `register_from_json`)
 - In-process agent registry + `create_agent` → `MetadataAgent` (`invoke` / `ainvoke`)
 - CLI for validate / register / list / run
-- Extensibility via `@register_node`, routers, and optional `register_chain_invoker`
+- Extensibility via `@register_node`, routers, chain invokers, and prompt/skill/LLM providers
 - Tests (`pytest`) and Makefile targets for install, demo, and wheel build
 
 ### Runtime flow
@@ -172,6 +172,8 @@ Runtime dependencies: `langgraph>=0.2`, `langchain-core>=0.3`, `PyYAML>=6`.
 
 ## Usage
 
+Engineer-oriented samples: [`examples/README.md`](examples/README.md).
+
 ### Quick demo CLI
 
 ```bash
@@ -273,17 +275,24 @@ agent = create_agent("my_agent")
 
 See `examples/register_custom_nodes.py` for a complete runnable sample.
 
-### Optional LLM chains
+### Optional LLM chains + content providers
 
-`llm_chain` nodes look up a pluggable invoker by `chain` name. LLM integration is optional; without a registered invoker the node raises a clear error.
+`llm_chain` prefers a registered chain invoker. Otherwise it builds chat messages from
+**PromptProvider** / **SkillProvider** (inline YAML, `content_dir` markdown, or a custom
+provider) and calls **LLMProvider**. Set one with `set_llm_provider(...)`.
 
 ```python
 from edim_dde_ai.registry.chains import register_chain_invoker
+from edim_dde_ai import set_llm_provider
 
 @register_chain_invoker("my_chain")
 def my_chain(state, config):
     return {"text": "stub response"}
+
+# Or: set_llm_provider(my_llm) + prompts in agent YAML / content_dir
 ```
+
+See [docs/USAGE.md](docs/USAGE.md) (inline, directory, invoker) and [docs/DESIGN.md](docs/DESIGN.md).
 
 ### Public API surface
 
@@ -303,6 +312,16 @@ __all__ = [
     "create_agent",
     "list_agents",
     "get_agent_definition",
+    "Skill",
+    "DirectoryContentProvider",
+    "set_prompt_provider",
+    "set_skill_provider",
+    "set_llm_provider",
+    "get_prompt_provider",
+    "get_skill_provider",
+    "get_llm_provider",
+    "register_skill",
+    "clear_content_providers",
 ]
 ```
 

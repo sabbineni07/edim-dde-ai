@@ -1,0 +1,24 @@
+agent_id: prompt_inline
+display_name: Prompt inline demo
+version: 1
+
+prompts:
+  chat:
+    system: "You are a helpful assistant."
+    human: "Question: {question}"
+
+skills:
+  - key: brevity
+    title: Brevity
+    content: "Keep it short."
+
+graph:
+  entry: call
+  nodes:
+    - id: call
+      type: llm_chain
+      chain: chat
+      output_key: llm_raw
+      attach_skills: true
+  edges:
+    - [call, END]

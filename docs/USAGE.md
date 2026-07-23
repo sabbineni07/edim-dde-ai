@@ -103,6 +103,8 @@ Python::
 
 ## LLM chains (optional)
 
+### Option A — Custom chain invoker (wins if registered)
+
 ```python
 from edim_dde_ai.registry.chains import register_chain_invoker
 
@@ -111,9 +113,70 @@ def my_chain(state, config):
     return {"text": "stub response"}
 ```
 
-Without a registered invoker, `llm_chain` nodes raise a clear error.
+### Option B — Inline prompts + LLMProvider
+
+Agent YAML:
+
+```yaml
+prompts:
+  chat:
+    system: "You are helpful."
+    human: "Question: {question}"
+skills:
+  - key: brevity
+    title: Brevity
+    content: "Keep it short."
+graph:
+  entry: call
+  nodes:
+    - id: call
+      type: llm_chain
+      chain: chat
+      attach_skills: true
+  edges:
+    - [call, END]
+```
+
+Python:
+
+```python
+from edim_dde_ai import register_from_yaml, create_agent, set_llm_provider
+
+class MyLLM:
+    def invoke(self, messages, *, config=None):
+        # messages: list[tuple[str, str]] e.g. ("system", "..."), ("human", "...")
+        return "model reply"
+
+set_llm_provider(MyLLM())
+register_from_yaml("examples/agents/prompt_inline.agent.yaml")
+print(create_agent("prompt_inline").invoke({"question": "hi"}))
+```
+
+### Option C — Directory content + `content_dir`
+
+```yaml
+content_dir: ./content   # relative to the agent YAML file
+```
+
+Layout under that directory:
+
+```
+prompts/chat.system.md
+prompts/chat.human.md
+skills/brevity.md        # optional first line: # Title
+```
+
+See `examples/agents/prompt_demo/`.
+
+Without a registered invoker **and** without `set_llm_provider`, `llm_chain` raises `ChainInvokerError`.
+
+## Examples
+
+Runnable samples (YAML agents + small Python runners) are indexed in
+[`examples/README.md`](../examples/README.md).
 
 ## CLI
+
 
 Tip: run `edim-dde-ai --help` (or `-V` / `--version`) for subcommands and examples.
 

@@ -73,6 +73,7 @@ class AgentDefinition:
     edges: tuple[tuple[str, str], ...]
     conditional_edges: tuple[ConditionalEdgeSpec, ...] = ()
     raw: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
+    source_path: str | None = None
 
     def node_ids(self) -> set[str]:
         return {n.id for n in self.nodes}

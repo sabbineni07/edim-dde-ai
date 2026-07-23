@@ -35,3 +35,7 @@ class ChainInvokerError(FoundationError):
 
 class RouterRegistryError(FoundationError):
     """Unknown or duplicate router."""
+
+
+class ContentError(FoundationError):
+    """Missing or invalid prompts, skills, or content provider configuration."""

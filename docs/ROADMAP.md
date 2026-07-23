@@ -21,8 +21,9 @@
 - [x] Configurable CLI store via `EDIM_DDE_AI_STORE`
 
 ## Phase 3 — Prompt / skill hooks
-- [ ] Prompt template hooks for agents
-- [ ] Skill / tool registration surface
+- [x] Prompt template hooks for agents (PromptProvider / ContentHub / inline + directory)
+- [x] Skill registration surface (SkillProvider / inline YAML / directory markdown)
+- [x] LLMProvider fallback for `llm_chain` when no custom invoker is registered
 
 ## Phase 4 — Conditional edges + richer routers
 - [x] Conditional edges wired in graph builder (router registry)
@@ -41,9 +42,14 @@
 
 ## Status
 
-**Current:** Phase 0–2 complete. Local publish capability (wheel/sdist + twine scripts/docs); remote index URL/credentials are an ops step. See Backlog/hygiene for deferred items (e.g. `protocols.py`).
+**Current:** Phase 0–3 complete (core runtime, publish tooling, prompt/skill/LLM content providers). Remote index URL/credentials remain ops config. See Backlog/hygiene for deferred items (e.g. `protocols.py`).
 
 ## Execution log
+
+- **2026-07-23** — Phase 3: `content/` package (PromptProvider / SkillProvider / LLMProvider,
+  ContentHub, inline YAML + directory markdown, `build_chat_messages`); `llm_chain` uses
+  custom invoker if registered else LLMProvider; `agent_id` injected by GraphBuilder;
+  tests + `prompt_inline` / `prompt_demo` examples.
 
 - **2026-07-23** — Renamed project from `edim-ai-foundation` / `edim_ai_foundation`
   to `edim-dde-ai` / `edim_dde_ai` (CLI, env `EDIM_DDE_AI_STORE`, store `~/.edim-dde-ai`,
