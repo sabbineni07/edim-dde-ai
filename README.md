@@ -95,7 +95,6 @@ agent_id: example_rca
 display_name: Example RCA
 version: 1
 graph:
-  entry: collect
   nodes:
     - id: collect
       type: set_value
@@ -108,6 +107,7 @@ graph:
       type: echo_result
       from_fields: [stage, text]
   edges:
+    - [START, collect]
     - [collect, analyze]
     - [analyze, finish]
     - [finish, END]
@@ -241,7 +241,6 @@ entry:
   method: invoke
   sync: true
 graph:
-  entry: greet
   nodes:
     - id: greet
       type: set_value
@@ -251,6 +250,7 @@ graph:
       type: echo_result
       from_fields: [greeting, message]
   edges:
+    - [START, greet]
     - [greet, finish]
     - [finish, END]
 ```
@@ -366,9 +366,9 @@ Variables: `PYTHON`, `PIP`, `AGENT_ID` (default `echo_agent`), `INPUT` (default 
 | **0** | Scaffold, packaging, docs, example YAMLs | Done |
 | **1** | Core runtime (load, registry, graph, API, CLI, tests) | Done |
 | **2** | Wheel publish + CLI polish | Done (local publish capability; remote index is ops) |
-| **3** | Prompt / skill hooks | Planned |
-| **4** | Richer routers / YAML sugar | Partial (conditional edges + field_truthy factory) |
-| **5** | Product adoption (RCA, cluster tuning, …) | Planned |
+| **3** | Prompt / skill hooks | Done |
+| **4** | Richer routers / YAML sugar | Done (`field_*`, `choice`, `graph.routes`) |
+| **5** | Product adoption (RCA, cluster tuning, …) | Done in `edim-dde-ai-agents` |
 
 API and UI remain **out of scope** for this repository — they are separate future projects that will consume this wheel.
 

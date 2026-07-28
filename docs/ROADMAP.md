@@ -30,11 +30,11 @@
 - [x] Router factory pattern (config -> RouterFn), aligned with nodes
 - [x] `field_truthy` requires `config.field` (no product-specific default)
 - [x] Conditional edges use `source` only; reject `from` with migration error
-- [ ] Richer router library and YAML sugar
+- [x] Richer router library (`field_equals`, `field_in`, `field_compare`, `choice`) and `graph.routes` YAML sugar
 
 ## Phase 5 — Product adoption
-- [ ] EDIM RCA agent consumes this wheel
-- [ ] Cluster tuning / other product agents migrate
+- [x] EDIM RCA agent consumes this wheel (`edim-dde-ai-agents` spark_job_rca_agent)
+- [x] Cluster tuning agent migrates graph to YAML + edim-dde-ai nodes/routers
 
 ## Backlog / hygiene (revisit later)
 
@@ -42,9 +42,12 @@
 
 ## Status
 
-**Current:** Phase 0–3 complete (core runtime, publish tooling, prompt/skill/LLM content providers). Remote index URL/credentials remain ops config. See Backlog/hygiene for deferred items (e.g. `protocols.py`).
+**Current:** Phase 0–5 complete (core runtime, publish tooling, content providers, richer routers/YAML sugar, product RCA + cluster tuning adoption). Remote index URL/credentials remain ops config. See Backlog/hygiene for deferred items (e.g. `protocols.py`).
 
 ## Execution log
+
+- **2026-07-23** — Phase 4+5: builtin routers (`field_equals` / `field_in` / `field_compare` /
+  `choice`) + `graph.routes` sugar; product repo adopts wheel for spark RCA and cluster tuning.
 
 - **2026-07-23** — Phase 3: `content/` package (PromptProvider / SkillProvider / LLMProvider,
   ContentHub, inline YAML + directory markdown, `build_chat_messages`); `llm_chain` uses

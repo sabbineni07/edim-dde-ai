@@ -5,7 +5,6 @@ entry:
   method: invoke
   sync: true
 graph:
-  entry: greet
   nodes:
     - id: greet
       type: set_value
@@ -15,5 +14,6 @@ graph:
       type: echo_result
       from_fields: [greeting, message]
   edges:
+    - [START, greet]
     - [greet, finish]
     - [finish, END]

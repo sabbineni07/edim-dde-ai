@@ -76,22 +76,48 @@ See `examples/register_custom_nodes.py`.
 ## Conditional edges (routers)
 
 Routers are factories: `(config) -> (state) -> branch_label`, same idea as node types.
-Builtin `field_truthy` requires `config.field` (agent-specific; no hardcoded default).
 
-YAML::
+### Builtins
+
+| Router | Config | Labels |
+|--------|--------|--------|
+| `field_truthy` | `field` | `true_label` / `false_label` (default `yes` / `no`) |
+| `field_equals` | `field`, `value` | same |
+| `field_in` | `field`, `values` (list) | same |
+| `field_compare` | `field`, `op` (`eq\|ne\|lt\|le\|gt\|ge`), `value` | same |
+| `choice` | `field`, optional `default` (default `default`) | mapping keys = `str(state[field])` |
+
+### Explicit YAML
 
     conditional_edges:
       - source: generate_recommendation   # use source, not from
         router: field_truthy
         config:
           field: include_explanation
-          # true_label: yes
-          # false_label: no
         mapping:
           yes: generate_explanation
           no: END
 
-Python::
+### Routes sugar (desugars to `conditional_edges`)
+
+    routes:
+      - after: generate_recommendation
+        when:
+          field: include_explanation
+          op: truthy          # truthy | equals | in | compare
+        then: generate_explanation
+        else: END
+
+      - after: classify
+        switch: category
+        cases:
+          oom: handle_oom
+          timeout: handle_timeout
+        else: handle_other    # maps to choice default label
+
+See `examples/agents/routes_sugar_agent.agent.yaml`.
+
+### Custom routers
 
     from edim_dde_ai.registry.routers import register_router
 

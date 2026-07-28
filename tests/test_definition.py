@@ -82,3 +82,49 @@ def test_conditional_edges_reject_from_key():
     data["graph"]["edges"] = [["b", "END"]]
     with pytest.raises(DefinitionError, match="use 'source'"):
         parse_agent_definition(data)
+
+
+def test_start_edge_derives_entry():
+    data = _minimal()
+    del data["graph"]["entry"]
+    data["graph"]["edges"] = [["START", "a"], ["a", "b"], ["b", "END"]]
+    defn = parse_agent_definition(data)
+    assert defn.graph_entry == "a"
+    assert defn.edges[0] == ("START", "a")
+
+
+def test_start_edge_matches_explicit_entry():
+    data = _minimal()
+    data["graph"]["edges"] = [["START", "a"], ["a", "b"], ["b", "END"]]
+    defn = parse_agent_definition(data)
+    assert defn.graph_entry == "a"
+
+
+def test_start_edge_conflicts_with_entry():
+    data = _minimal()
+    data["graph"]["entry"] = "b"
+    data["graph"]["edges"] = [["START", "a"], ["a", "b"], ["b", "END"]]
+    with pytest.raises(DefinitionError, match="conflicts with START"):
+        parse_agent_definition(data)
+
+
+def test_multiple_start_targets_rejected():
+    data = _minimal()
+    del data["graph"]["entry"]
+    data["graph"]["edges"] = [["START", "a"], ["START", "b"], ["b", "END"]]
+    with pytest.raises(DefinitionError, match="multiple distinct START"):
+        parse_agent_definition(data)
+
+
+def test_missing_entry_and_start_rejected():
+    data = _minimal()
+    del data["graph"]["entry"]
+    with pytest.raises(DefinitionError, match="graph requires entry"):
+        parse_agent_definition(data)
+
+
+def test_reserved_node_id_rejected():
+    data = _minimal()
+    data["graph"]["nodes"].append({"id": "END", "type": "passthrough"})
+    with pytest.raises(DefinitionError, match="reserved"):
+        parse_agent_definition(data)

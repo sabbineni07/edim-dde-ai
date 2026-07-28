@@ -83,14 +83,16 @@ graph.runtime.MetadataAgent  (invoke / ainvoke)
 - `GraphBuilder` adds nodes, entry, edges, conditional edges, then compiles.
 - `build_graph(definition)` is the public function and uses `GraphBuilder` internally.
 - Adapters wrap flat-state nodes/routers for the internal `data` bag channel.
-- Edges: `"END"` string maps to LangGraph `END`.
+- Edges: `"START"` / `"END"` strings are reserved endpoints (`START` declares entry; `"END"` maps to LangGraph `END`). `graph.entry` is optional when a `[START, node]` edge is present.
 
 ### Routers (`registry/routers.py`)
 
 - Factories: `(config) -> (state) -> branch_label` (same shape as node factories).
 - `register_router` / `get_router_factory` / `list_routers`; `get_router` is an alias of `get_router_factory`.
 - Seeded with `BUILTIN_ROUTER_FACTORIES` (`BUILTIN_ROUTERS` alias kept for older imports).
-- Builtin: `field_truthy` — requires `config.field`; optional `true_label` / `false_label` (default `yes` / `no`). No product-specific field default.
+- Builtins: `field_truthy`, `field_equals`, `field_in`, `field_compare`, `choice`.
+  Binary routers require `config.field`; optional `true_label` / `false_label` (default `yes` / `no`).
+- Optional YAML sugar: `graph.routes` desugars to `conditional_edges` (see `core.routes_sugar`).
 - Conditional-edge YAML uses `source` only (not `from`); optional `config` mapping is passed to the factory at graph-build time.
 
 Example YAML::

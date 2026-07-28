@@ -5,7 +5,6 @@ entry:
   method: invoke
   sync: true
 graph:
-  entry: step_one
   nodes:
     - id: step_one
       type: set_value
@@ -19,6 +18,7 @@ graph:
       type: echo_result
       from_fields: [step, label, message]
   edges:
+    - [START, step_one]
     - [step_one, step_two]
     - [step_two, finish]
     - [finish, END]

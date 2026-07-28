@@ -7,14 +7,19 @@ Python registries at build time (no dynamic imports from YAML).
 Conditional edges use the key ``source`` (not ``from``). Each item may include
 optional ``config`` (a mapping) passed to the router factory.
 
+Optional ``graph.routes`` sugar is desugared into ``conditional_edges`` before
+validation (see ``core.routes_sugar``).
+
+``START`` / ``END`` are reserved edge endpoints (not node ids). ``graph.entry``
+is optional when exactly one ``[START, node]`` edge is present.
+
 Example::
 
     {
       "agent_id": "demo",
       "graph": {
-        "entry": "a",
         "nodes": [{"id": "a", "type": "passthrough"}],
-        "edges": [["a", "END"]],
+        "edges": [["START", "a"], ["a", "END"]],
         "conditional_edges": [
           {
             "source": "a",
@@ -33,6 +38,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from edim_dde_ai.errors import DefinitionError
+
+_RESERVED = frozenset({"START", "END"})
 
 
 @dataclass(frozen=True)
@@ -115,9 +122,10 @@ def parse_agent_definition(data: dict[str, Any]) -> AgentDefinition:
     if not isinstance(graph, dict):
         raise DefinitionError("graph must be a mapping")
 
-    graph_entry = _require(graph, "entry", "graph")
-    if not isinstance(graph_entry, str) or not graph_entry.strip():
-        raise DefinitionError("graph.entry must be a non-empty string")
+    # Expand optional routes sugar before validating conditional_edges.
+    from edim_dde_ai.core.routes_sugar import apply_routes_sugar
+
+    graph = apply_routes_sugar(graph)
 
     nodes_raw = _require(graph, "nodes", "graph")
     if not isinstance(nodes_raw, list) or not nodes_raw:
@@ -132,6 +140,10 @@ def parse_agent_definition(data: dict[str, Any]) -> AgentDefinition:
         ntype = item.get("type")
         if not isinstance(nid, str) or not nid.strip():
             raise DefinitionError(f"graph.nodes[{i}].id must be a non-empty string")
+        if nid in _RESERVED:
+            raise DefinitionError(
+                f"graph.nodes[{i}].id '{nid}' is reserved; use START/END only in edges"
+            )
         if not isinstance(ntype, str) or not ntype.strip():
             raise DefinitionError(f"graph.nodes[{i}].type must be a non-empty string")
         if nid in seen_ids:
@@ -140,25 +152,70 @@ def parse_agent_definition(data: dict[str, Any]) -> AgentDefinition:
         config = {k: v for k, v in item.items() if k not in ("id", "type")}
         nodes.append(NodeSpec(id=nid, type=ntype, config=config))
 
-    if graph_entry not in seen_ids:
-        raise DefinitionError(f"graph.entry '{graph_entry}' is not a defined node id")
-
     edges_raw = graph.get("edges") or []
     if not isinstance(edges_raw, list):
         raise DefinitionError("graph.edges must be a list")
 
     edges: list[tuple[str, str]] = []
+    start_targets: list[str] = []
     for i, edge in enumerate(edges_raw):
         if not isinstance(edge, (list, tuple)) or len(edge) != 2:
             raise DefinitionError(f"graph.edges[{i}] must be a [source, target] pair")
         src, tgt = edge[0], edge[1]
         if not isinstance(src, str) or not isinstance(tgt, str):
             raise DefinitionError(f"graph.edges[{i}] endpoints must be strings")
+
+        if src == "END":
+            raise DefinitionError(f"graph.edges[{i}]: END cannot be an edge source")
+        if tgt == "START":
+            raise DefinitionError(f"graph.edges[{i}]: START cannot be an edge target")
+
+        if src == "START":
+            if tgt not in seen_ids:
+                raise DefinitionError(
+                    f"graph.edges[{i}] START target '{tgt}' is not a node id"
+                )
+            start_targets.append(tgt)
+            edges.append((src, tgt))
+            continue
+
         if src not in seen_ids:
             raise DefinitionError(f"graph.edges[{i}] source '{src}' is not a node id")
         if tgt != "END" and tgt not in seen_ids:
-            raise DefinitionError(f"graph.edges[{i}] target '{tgt}' is not a node id or END")
+            raise DefinitionError(
+                f"graph.edges[{i}] target '{tgt}' is not a node id or END"
+            )
         edges.append((src, tgt))
+
+    explicit_entry = graph.get("entry")
+    if explicit_entry is not None:
+        if not isinstance(explicit_entry, str) or not explicit_entry.strip():
+            raise DefinitionError("graph.entry must be a non-empty string when set")
+        if explicit_entry not in seen_ids:
+            raise DefinitionError(
+                f"graph.entry '{explicit_entry}' is not a defined node id"
+            )
+
+    if start_targets:
+        unique_starts = set(start_targets)
+        if len(unique_starts) > 1:
+            raise DefinitionError(
+                "graph.edges has multiple distinct START targets: "
+                f"{sorted(unique_starts)}; use a single [START, node] edge"
+            )
+        start_entry = start_targets[0]
+        if explicit_entry is not None and explicit_entry != start_entry:
+            raise DefinitionError(
+                f"graph.entry '{explicit_entry}' conflicts with START edge "
+                f"target '{start_entry}'"
+            )
+        graph_entry = start_entry
+    elif explicit_entry is not None:
+        graph_entry = explicit_entry
+    else:
+        raise DefinitionError(
+            "graph requires entry (node id) or a [START, node] edge"
+        )
 
     cond_raw = graph.get("conditional_edges") or []
     if not isinstance(cond_raw, list):

@@ -62,6 +62,9 @@ class GraphBuilder:
 
     def add_edges(self) -> GraphBuilder:
         for src, tgt in self.definition.edges:
+            if src == "START":
+                # Entry is set via set_entry_point(graph_entry); START is declarative only.
+                continue
             self._builder.add_edge(src, _map_target(tgt))
         return self
 

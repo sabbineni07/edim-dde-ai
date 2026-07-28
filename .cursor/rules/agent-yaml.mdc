@@ -13,20 +13,23 @@ agent_id: my_agent          # required
 display_name: My Agent      # optional
 version: 1                  # optional
 graph:
-  entry: start              # required node id
+  # entry: start            # optional if a [START, node] edge is present
   nodes:
     - id: start
       type: set_value       # must be a registered node type
       field: stage
       value: begun
   edges:
+    - [START, start]
     - [start, END]
 ```
 
 ## Rules
 
 - Extra keys on a node (beyond `id` / `type`) become `NodeSpec.config`.
-- Edge targets may be node ids or `END`.
+- Graph entry: set `graph.entry` **or** include a `[START, node]` edge (or both if they agree).
+- `START` / `END` are reserved edge endpoints — not node ids.
+- Edge targets may be node ids or `END`; edge sources may be node ids or `START`.
 - Conditional edges use `source`, `router` (registered id), and `mapping`.
 - Prefer `*.agent.yaml` under agent directories (loader default pattern).
 - Do not put Python module paths or callables in YAML.

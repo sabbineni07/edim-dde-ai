@@ -1,0 +1,29 @@
+agent_id: routes_sugar_agent
+display_name: Routes Sugar Agent
+version: 1
+entry:
+  method: invoke
+  sync: true
+graph:
+  entry: decide
+  nodes:
+    - id: decide
+      type: passthrough
+    - id: details
+      type: set_value
+      field: branch_message
+      value: "full details path"
+    - id: summary
+      type: set_value
+      field: branch_message
+      value: "brief summary path"
+  edges:
+    - [details, END]
+    - [summary, END]
+  routes:
+    - after: decide
+      when:
+        field: include_details
+        op: truthy
+      then: details
+      else: summary
