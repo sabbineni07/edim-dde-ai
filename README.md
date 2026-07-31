@@ -15,6 +15,7 @@ Compose agent graphs in YAML; implement node types in Python via an allowlisted 
 
 Further reading:
 
+- [Stack engineer docs](../edim-dde-domain/docs/README.md) — quickstart, architecture, framework guides (temporary home under domain)
 - [docs/DESIGN.md](docs/DESIGN.md) — architecture, hybrid model, security stance
 - [docs/USAGE.md](docs/USAGE.md) — install, registration, custom nodes, CLI
 - [docs/PUBLISHING.md](docs/PUBLISHING.md) — wheel build, private index / twine publish
