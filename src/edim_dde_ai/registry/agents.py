@@ -3,7 +3,9 @@
 Stores parsed ``AgentDefinition`` objects by ``agent_id``. Overwrite is allowed
 by default so CLI/API reloads are easy; pass ``overwrite=False`` to forbid.
 
-``create_agent(agent_id)`` builds a ``MetadataAgent`` via ``AgentFactory``.
+``create_agent(agent_id)`` returns a cached ``MetadataAgent`` (compiled once
+per registration). Re-registering or ``clear_agent_registry`` invalidates the
+cache for that id / all ids.
 
 Example::
 
@@ -15,8 +17,9 @@ Example::
     agent.invoke({"x": 1})
 """
 
-
 from __future__ import annotations
+
+import threading
 
 from edim_dde_ai.core.definition import AgentDefinition
 from edim_dde_ai.errors import AgentRegistryError
@@ -29,6 +32,9 @@ _REGISTRY: Registry[AgentDefinition] = Registry(
     allow_overwrite=True,
 )
 
+_CACHE: dict[str, MetadataAgent] = {}
+_CACHE_LOCK = threading.Lock()
+
 
 def register_agent(definition: AgentDefinition, *, overwrite: bool = False) -> str:
     """Register an AgentDefinition. Returns agent_id.
@@ -36,9 +42,13 @@ def register_agent(definition: AgentDefinition, *, overwrite: bool = False) -> s
     When the definition ``raw`` includes ``prompts`` / ``skills`` or
     ``content_dir``, content is merged into the process-wide ContentHub
     (inline store and/or per-agent directory roots).
+
+    Invalidates any previously compiled agent for this ``agent_id``.
     """
     agent_id = definition.agent_id
     _REGISTRY.register(agent_id, definition, overwrite=overwrite)
+    with _CACHE_LOCK:
+        _CACHE.pop(agent_id, None)
     raw = definition.raw or {}
     if (
         raw.get("prompts") is not None
@@ -63,11 +73,25 @@ def list_agents() -> list[str]:
 
 
 def create_agent(agent_id: str) -> MetadataAgent:
-    """Build a MetadataAgent for ``agent_id`` (delegates to AgentFactory)."""
-    from edim_dde_ai.factories.agent import AgentFactory
+    """Return a compiled MetadataAgent for ``agent_id`` (cached after first build)."""
+    with _CACHE_LOCK:
+        cached = _CACHE.get(agent_id)
+        if cached is not None:
+            return cached
 
-    return AgentFactory.create(agent_id)
+        from edim_dde_ai.factories.agent import AgentFactory
+
+        agent = AgentFactory.create(agent_id)
+        _CACHE[agent_id] = agent
+        return agent
+
+
+def clear_agent_cache() -> None:
+    """Drop all compiled agents (definitions stay registered)."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
 
 
 def clear_agent_registry() -> None:
+    clear_agent_cache()
     _REGISTRY.clear(restore_seed=False)
