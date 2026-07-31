@@ -33,6 +33,29 @@ def test_load_directory():
     assert "two_step_agent" in ids
 
 
+def test_load_directory_recursive(tmp_path: Path):
+    nested = tmp_path / "agents" / "demo"
+    nested.mkdir(parents=True)
+    (nested / "demo.agent.yaml").write_text(
+        """
+agent_id: nested_demo
+version: 1
+entry: {method: invoke, sync: true}
+graph:
+  entry: a
+  nodes:
+    - {id: a, type: passthrough}
+  edges: [[a, END]]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(LoaderError, match="No files matching"):
+        load_directory(tmp_path / "agents")
+    defs = load_directory(tmp_path / "agents", recursive=True)
+    assert [d.agent_id for d in defs] == ["nested_demo"]
+
+
 def test_load_missing_file():
     with pytest.raises(LoaderError):
         load_yaml(EXAMPLES / "nope.agent.yaml")

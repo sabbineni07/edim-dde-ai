@@ -65,12 +65,28 @@ def load_paths(paths: Iterable[str | Path]) -> list[AgentDefinition]:
 def load_directory(
     directory: str | Path,
     pattern: str = "*.agent.yaml",
+    *,
+    recursive: bool = False,
 ) -> list[AgentDefinition]:
-    """Load all matching agent YAML files from a directory (non-recursive)."""
+    """Load matching agent YAML files from a directory.
+
+    By default only the top level is scanned. Pass ``recursive=True`` to include
+    nested folders (e.g. ``agents/<name>/<name>.agent.yaml``).
+    """
     d = Path(directory)
     if not d.is_dir():
         raise LoaderError(f"Not a directory: {d}")
-    files = sorted(d.glob(pattern))
-    if not files:
-        raise LoaderError(f"No files matching '{pattern}' in {d}")
-    return [load_yaml(f) for f in files]
+    files = sorted(d.rglob(pattern) if recursive else d.glob(pattern))
+    # rglob can match the same file twice on some platforms if pattern is odd; unique
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for f in files:
+        resolved = f.resolve()
+        if resolved in seen or not f.is_file():
+            continue
+        seen.add(resolved)
+        unique.append(f)
+    if not unique:
+        scope = "recursively under" if recursive else "in"
+        raise LoaderError(f"No files matching '{pattern}' {scope} {d}")
+    return [load_yaml(f) for f in unique]

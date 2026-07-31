@@ -59,6 +59,28 @@ def test_register_from_directory():
     assert agent.invoke({"message": "z"})["result"]["message"] == "z"
 
 
+def test_register_from_directory_recursive(tmp_path: Path):
+    nested = tmp_path / "pkg"
+    nested.mkdir()
+    (nested / "nested.agent.yaml").write_text(
+        """
+agent_id: nested_dir_agent
+version: 1
+entry: {method: invoke, sync: true}
+graph:
+  entry: a
+  nodes:
+    - {id: a, type: passthrough}
+  edges: [[a, END]]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    ids = register_from_directory(tmp_path, recursive=True, overwrite=True)
+    assert ids == ["nested_dir_agent"]
+    assert create_agent("nested_dir_agent").invoke({}) == {}
+
+
 def test_register_from_paths():
     ids = register_from_paths([EXAMPLES / "echo_agent.agent.yaml"])
     assert ids == ["echo_agent"]

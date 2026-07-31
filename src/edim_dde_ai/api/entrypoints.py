@@ -45,10 +45,16 @@ def register_from_directory(
     *,
     pattern: str = "*.agent.yaml",
     overwrite: bool = False,
+    recursive: bool = False,
 ) -> list[str]:
-    """Load and register all matching YAMLs in a directory. Returns agent_ids."""
+    """Load and register matching YAMLs in a directory. Returns agent_ids.
+
+    Set ``recursive=True`` to discover ``*.agent.yaml`` under nested folders.
+    """
     ids: list[str] = []
-    for definition in load_directory(directory, pattern=pattern):
+    for definition in load_directory(
+        directory, pattern=pattern, recursive=recursive
+    ):
         ids.append(register_agent(definition, overwrite=overwrite))
     return ids
 
