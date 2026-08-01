@@ -40,12 +40,18 @@ class MetadataAgent:
         return dict((out or {}).get("data") or {})
 
     def invoke(self, state: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+        from edim_dde_ai.observability.langsmith import merge_invoke_kwargs
+
+        kwargs = merge_invoke_kwargs(self.agent_id, kwargs)
         out = self.graph.invoke(self._prepare(state), **kwargs)
         return self._extract(out)
 
     async def ainvoke(
         self, state: dict[str, Any] | None = None, **kwargs: Any
     ) -> dict[str, Any]:
+        from edim_dde_ai.observability.langsmith import merge_invoke_kwargs
+
+        kwargs = merge_invoke_kwargs(self.agent_id, kwargs)
         out = await self.graph.ainvoke(self._prepare(state), **kwargs)
         return self._extract(out)
 

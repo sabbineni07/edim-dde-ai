@@ -21,7 +21,7 @@ def _isolated_cli_store(tmp_path, monkeypatch):
 
 def test_cli_version(capsys):
     assert main(["version"]) == 0
-    assert capsys.readouterr().out.strip() == "0.1.0"
+    assert capsys.readouterr().out.strip() == "1.0.0"
 
 
 def test_cli_dash_v_version(capsys):
@@ -31,7 +31,7 @@ def test_cli_dash_v_version(capsys):
     err = capsys.readouterr()
     # argparse version goes to stdout (or stderr depending on version); accept either
     combined = (err.out + err.err).strip()
-    assert "0.1.0" in combined
+    assert "1.0.0" in combined
 
 
 def test_cli_help_exits_zero(capsys):

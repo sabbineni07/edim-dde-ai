@@ -98,6 +98,11 @@ def parse_agent_definition(data: dict[str, Any]) -> AgentDefinition:
     if not isinstance(data, dict):
         raise DefinitionError("Agent definition must be a mapping")
 
+    # Optional R1 contract blocks (metadata, model, security, …).
+    from edim_dde_ai.schema.validate import validate_extended_blocks
+
+    validate_extended_blocks(data)
+
     agent_id = _require(data, "agent_id")
     if not isinstance(agent_id, str) or not agent_id.strip():
         raise DefinitionError("agent_id must be a non-empty string")

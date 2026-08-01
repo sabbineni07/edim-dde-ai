@@ -1,0 +1,12 @@
+agent_id: invoke_child_demo
+display_name: Invoke-agent child (demo)
+version: 1
+graph:
+  nodes:
+    - id: greet
+      type: set_value
+      field: greeting
+      template: "hello-{name}"
+  edges:
+    - [START, greet]
+    - [greet, END]

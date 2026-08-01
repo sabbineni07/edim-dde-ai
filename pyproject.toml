@@ -38,6 +38,8 @@ Documentation = "https://github.com/sabbineni07/edim-dde-ai/tree/main/docs"
 [project.optional-dependencies]
 dev = ["pytest>=8", "build>=1.0"]
 release = ["build>=1.0", "twine>=5.0"]
+observability = ["langsmith>=0.1"]
+schema = ["jsonschema>=4.0"]
 
 [project.scripts]
 edim-dde-ai = "edim_dde_ai.cli:main"

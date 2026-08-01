@@ -1,0 +1,24 @@
+agent_id: invoke_parent_demo
+display_name: Invoke-agent parent (demo)
+version: 1
+metadata:
+  owner: platform
+  risk_tier: low
+  lifecycle: draft
+graph:
+  nodes:
+    - id: seed
+      type: set_value
+      field: name
+      value: world
+    - id: call_child
+      type: invoke_agent
+      agent_id: invoke_child_demo
+      input_keys: [name]
+      output_map:
+        greeting: child_greeting
+      max_depth: 3
+  edges:
+    - [START, seed]
+    - [seed, call_child]
+    - [call_child, END]

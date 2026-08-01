@@ -52,6 +52,12 @@ class GraphBuilder:
             factory = get_node_factory(node.type)
             cfg = dict(node.config)
             cfg.setdefault("agent_id", self.definition.agent_id)
+            # For invoke_agent, keep target in agent_id and pass caller separately.
+            if node.type == "invoke_agent":
+                cfg["caller_agent_id"] = self.definition.agent_id
+                # YAML uses agent_id for the *target*; do not overwrite with parent id.
+                if "agent_id" in node.config:
+                    cfg["agent_id"] = node.config["agent_id"]
             runnable = factory(cfg)
             self._builder.add_node(node.id, adapt_node(runnable))
         return self
