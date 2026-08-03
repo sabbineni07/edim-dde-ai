@@ -25,6 +25,12 @@ from edim_dde_ai.observability import (
     get_observability_provider,
     set_observability_provider,
 )
+from edim_dde_ai.store import (
+    configure_state_store_from_env,
+    get_state_store,
+    set_state_store,
+    sync_registered_agents_to_store,
+)
 from edim_dde_ai.registry.agents import (
     create_agent,
     get_agent_definition,
@@ -63,4 +69,8 @@ __all__ = [
     "set_observability_provider",
     "get_observability_provider",
     "configure_observability_from_env",
+    "set_state_store",
+    "get_state_store",
+    "configure_state_store_from_env",
+    "sync_registered_agents_to_store",
 ]

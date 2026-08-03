@@ -7,8 +7,10 @@
 - Builtin `invoke_agent` node (nested agent call with depth limit + self-call guard)
 - **Pluggable observability providers** (`ObservabilityProvider`): `none` · `langsmith` · `mlflow`; `configure_observability_from_env` / `EDIM_OBSERVABILITY`
 - LangSmith/LangChain run config helpers; `MetadataAgent` merges provider config on invoke
-- Optional extras: `[observability]`, `[mlflow]`, `[schema]`
+- Optional extras: `[observability]`, `[mlflow]`, `[schema]`, `[postgres]`, `[cosmos]`, `[redis]`
 - Example agents: `invoke_agent_parent` / `invoke_agent_child`
+- **Pluggable control-plane StateStore** (`store/`): `memory` · `postgres` · `cosmos` · `redis`; `configure_state_store_from_env` / `sync_registered_agents_to_store`
 
 ### Notes
 - **Tag + changelog only** for this release — publishing wheels to an internal index (Artifactory/etc.) remains an ops step when you are ready; no publish was performed as part of Phase 0.
+- Azure DevOps / Git remains source of truth for `*.agent.yaml`; StateStore holds catalog metadata, sessions, and audit.

@@ -201,6 +201,32 @@ Without a registered invoker **and** without `set_llm_provider`, `llm_chain` rai
 Runnable samples (YAML agents + small Python runners) are indexed in
 [`examples/README.md`](../examples/README.md).
 
+## Control-plane state store
+
+Optional durable catalog / sessions / audit (not a replacement for Git YAML):
+
+```bash
+export EDIM_STATE_STORE=postgres   # or cosmos | redis | memory
+export EDIM_DATABASE_URL=postgresql://edim:edim@localhost:5432/edim
+pip install 'edim-dde-ai[postgres]'
+```
+
+```python
+from edim_dde_ai import (
+    configure_state_store_from_env,
+    sync_registered_agents_to_store,
+    get_state_store,
+)
+
+configure_state_store_from_env()
+# after register_from_yaml / bootstrap:
+sync_registered_agents_to_store()
+print(get_state_store().list_agents())
+```
+
+Full engineer guide lives in the domain docs hub:
+`edim-dde-domain/docs/platform/state-store.md`.
+
 ## CLI
 
 

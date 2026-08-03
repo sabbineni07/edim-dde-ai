@@ -44,9 +44,13 @@ edim_dde_ai/
   factories/           # AgentFactory
   graph/               # Builder, adapters, MetadataAgent runtime
   nodes/               # builtin node implementations + BUILTIN_NODE_FACTORIES
+  observability/       # ObservabilityProvider (langsmith | mlflow | none)
+  store/               # StateStore control plane (memory | postgres | cosmos | redis)
   api/                 # register_from_yaml / paths / directory
   cli/                 # argparse CLI + path store
 ```
+
+**Planes:** graph YAML stays in Git; `store/` holds catalog/session/audit metadata; `observability/` is the tracing side channel. Engineer guide (domain docs): `platform/state-store.md`, `platform/observability.md`.
 
 ## Components
 
