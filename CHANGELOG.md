@@ -5,8 +5,9 @@
 ### Added
 - Canonical agent JSON Schema (`schemas/agent.schema.json`) and extended-block validation (`schema` package)
 - Builtin `invoke_agent` node (nested agent call with depth limit + self-call guard)
-- LangSmith/LangChain run config helpers (`observability` package); `MetadataAgent` merges tags/metadata on invoke
-- Optional extras: `[observability]`, `[schema]`
+- **Pluggable observability providers** (`ObservabilityProvider`): `none` · `langsmith` · `mlflow`; `configure_observability_from_env` / `EDIM_OBSERVABILITY`
+- LangSmith/LangChain run config helpers; `MetadataAgent` merges provider config on invoke
+- Optional extras: `[observability]`, `[mlflow]`, `[schema]`
 - Example agents: `invoke_agent_parent` / `invoke_agent_child`
 
 ### Notes

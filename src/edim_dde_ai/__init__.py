@@ -20,6 +20,11 @@ from edim_dde_ai.content import (
     set_prompt_provider,
     set_skill_provider,
 )
+from edim_dde_ai.observability import (
+    configure_observability_from_env,
+    get_observability_provider,
+    set_observability_provider,
+)
 from edim_dde_ai.registry.agents import (
     create_agent,
     get_agent_definition,
@@ -55,4 +60,7 @@ __all__ = [
     "get_llm_provider",
     "register_skill",
     "clear_content_providers",
+    "set_observability_provider",
+    "get_observability_provider",
+    "configure_observability_from_env",
 ]
