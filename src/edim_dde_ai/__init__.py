@@ -31,6 +31,11 @@ from edim_dde_ai.store import (
     set_state_store,
     sync_registered_agents_to_store,
 )
+from edim_dde_ai.retrieval import (
+    configure_retrieval_from_env,
+    get_retrieval_provider,
+    set_retrieval_provider,
+)
 from edim_dde_ai.registry.agents import (
     create_agent,
     get_agent_definition,
@@ -73,4 +78,7 @@ __all__ = [
     "get_state_store",
     "configure_state_store_from_env",
     "sync_registered_agents_to_store",
+    "set_retrieval_provider",
+    "get_retrieval_provider",
+    "configure_retrieval_from_env",
 ]

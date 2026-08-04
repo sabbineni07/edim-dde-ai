@@ -67,6 +67,20 @@ def validate_extended_blocks(data: dict[str, Any]) -> None:
         if not isinstance(block, dict):
             raise DefinitionError(f"{key} must be a mapping or null")
 
+    rag = data.get("rag")
+    if isinstance(rag, dict):
+        if "enabled" in rag and not isinstance(rag["enabled"], bool):
+            raise DefinitionError("rag.enabled must be a boolean")
+        if "top_k" in rag and (
+            not isinstance(rag["top_k"], int) or rag["top_k"] < 1
+        ):
+            raise DefinitionError("rag.top_k must be a positive integer")
+        mode = rag.get("search_mode")
+        if mode is not None and mode not in {"vector", "keyword", "hybrid"}:
+            raise DefinitionError(
+                "rag.search_mode must be vector|keyword|hybrid"
+            )
+
     security = data.get("security")
     if isinstance(security, dict) and "pii_redaction" in security:
         if not isinstance(security["pii_redaction"], bool):

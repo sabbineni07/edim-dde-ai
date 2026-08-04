@@ -46,11 +46,12 @@ edim_dde_ai/
   nodes/               # builtin node implementations + BUILTIN_NODE_FACTORIES
   observability/       # ObservabilityProvider (langsmith | mlflow | none)
   store/               # StateStore control plane (memory | postgres | cosmos | redis)
+  retrieval/           # RetrievalProvider (faiss | azure_ai_search | databricks_vector | …)
   api/                 # register_from_yaml / paths / directory
   cli/                 # argparse CLI + path store
 ```
 
-**Planes:** graph YAML stays in Git; `store/` holds catalog/session/audit metadata; `observability/` is the tracing side channel. Engineer guide (domain docs): `platform/state-store.md`, `platform/observability.md`.
+**Planes:** graph YAML stays in Git; `store/` holds catalog/session/audit metadata; `retrieval/` is similarity search (RAG is compose-in-graph); `observability/` is the tracing side channel. Engineer guides (domain docs): `platform/state-store.md`, `platform/retrieval-and-rag.md`, `platform/observability.md`.
 
 ## Components
 

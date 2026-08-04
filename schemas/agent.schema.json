@@ -42,7 +42,17 @@
       "type": "array",
       "items": { "type": "object" }
     },
-    "rag": { "type": ["object", "null"] },
+    "rag": {
+      "type": ["object", "null"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "corpus": { "type": "string" },
+        "top_k": { "type": "integer", "minimum": 1 },
+        "search_mode": { "enum": ["vector", "keyword", "hybrid"] },
+        "cite": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
     "security": {
       "type": "object",
       "properties": {

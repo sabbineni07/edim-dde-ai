@@ -168,6 +168,68 @@ def llm_chain_factory(config: dict[str, Any]):
     return _node
 
 
+def rag_retrieve_factory(config: dict[str, Any]):
+    """Similarity / hybrid search via the active RetrievalProvider (BL-021).
+
+    Config:
+      corpus: str — logical corpus name (default ``default``)
+      top_k: int — max hits (default 5)
+      search_mode: vector | keyword | hybrid (default hybrid)
+      query: str — literal query (optional)
+      query_key: str — state key holding the query string
+      query_keys: list[str] — join multiple state string fields
+      output_key: str — hits list key (default ``retrieval_hits``)
+      context_key: str — formatted text key (default ``retrieval_context``)
+      skip_if_empty_query: bool — no-op when query blank (default True)
+    """
+    corpus = str(config.get("corpus") or "default")
+    top_k = int(config.get("top_k", 5))
+    search_mode = str(config.get("search_mode") or "hybrid")
+    output_key = str(config.get("output_key") or "retrieval_hits")
+    context_key = str(config.get("context_key") or "retrieval_context")
+    skip_if_empty = bool(config.get("skip_if_empty_query", True))
+    literal_query = config.get("query")
+    query_key = config.get("query_key")
+    query_keys = config.get("query_keys")
+
+    def _resolve_query(state: dict[str, Any]) -> str:
+        if isinstance(literal_query, str) and literal_query.strip():
+            return _substitute(literal_query, state)
+        if isinstance(query_key, str) and query_key:
+            return str(state.get(query_key) or "")
+        if isinstance(query_keys, list) and query_keys:
+            parts = [str(state.get(k) or "").strip() for k in query_keys]
+            return "\n".join(p for p in parts if p)
+        # Auto: common RCA / generic keys
+        for key in ("retrieval_query", "query", "question", "user_query"):
+            val = state.get(key)
+            if isinstance(val, str) and val.strip():
+                return val
+        return ""
+
+    def _node(state: dict[str, Any]) -> dict[str, Any]:
+        from edim_dde_ai.retrieval import (
+            format_hits_as_context,
+            search_corpus,
+        )
+
+        query = _resolve_query(state).strip()
+        if not query and skip_if_empty:
+            return {output_key: [], context_key: "(no retrieval query)"}
+        hits = search_corpus(
+            query or " ",
+            corpus=corpus,
+            top_k=top_k,
+            search_mode=search_mode,
+        )
+        return {
+            output_key: [h.to_dict() for h in hits],
+            context_key: format_hits_as_context(hits),
+        }
+
+    return _node
+
+
 # Single source of truth for builtin type_id → factory (seeded into the node registry).
 BUILTIN_NODE_FACTORIES = {
     "passthrough": passthrough_factory,
@@ -175,4 +237,5 @@ BUILTIN_NODE_FACTORIES = {
     "echo_result": echo_result_factory,
     "llm_chain": llm_chain_factory,
     "invoke_agent": invoke_agent_factory,
+    "rag.retrieve": rag_retrieve_factory,
 }

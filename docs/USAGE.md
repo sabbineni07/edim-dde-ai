@@ -227,7 +227,30 @@ print(get_state_store().list_agents())
 Full engineer guide lives in the domain docs hub:
 `edim-dde-domain/docs/platform/state-store.md`.
 
+## Retrieval / RAG
+
+```bash
+export EDIM_RETRIEVAL=faiss   # or azure_ai_search | databricks_vector | memory | none
+export EDIM_FAISS_INDEX_PATH=/tmp/edim-indexes
+pip install 'edim-dde-ai[faiss]'
+```
+
+```python
+from edim_dde_ai import configure_retrieval_from_env
+from edim_dde_ai.retrieval import search_corpus
+
+configure_retrieval_from_env()
+hits = search_corpus("OutOfMemoryError", corpus="spark-runbooks", top_k=5)
+```
+
+Builtin node: `rag.retrieve`. Pilot agent: domain `spark_rca` (runbook grounding).
+
+Guide: `edim-dde-domain/docs/platform/retrieval-and-rag.md`.
+
 ## CLI
+
+
+Tip: run `edim-dde-ai --help` (or `-V` / `--version`) for subcommands and examples.
 
 
 Tip: run `edim-dde-ai --help` (or `-V` / `--version`) for subcommands and examples.

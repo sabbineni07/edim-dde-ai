@@ -10,7 +10,10 @@
 - Optional extras: `[observability]`, `[mlflow]`, `[schema]`, `[postgres]`, `[cosmos]`, `[redis]`
 - Example agents: `invoke_agent_parent` / `invoke_agent_child`
 - **Pluggable control-plane StateStore** (`store/`): `memory` · `postgres` · `cosmos` · `redis`; `configure_state_store_from_env` / `sync_registered_agents_to_store`
+- **Pluggable RetrievalProvider** (`retrieval/`): `none` · `memory` · `faiss` · `azure_ai_search` · `databricks_vector`; builtin `rag.retrieve`; corpus registry
+- Optional extras: `[postgres]`, `[cosmos]`, `[redis]`, `[faiss]`, `[azure-search]`, `[databricks-vector]`, `[retrieval]`
 
 ### Notes
 - **Tag + changelog only** for this release — publishing wheels to an internal index (Artifactory/etc.) remains an ops step when you are ready; no publish was performed as part of Phase 0.
 - Azure DevOps / Git remains source of truth for `*.agent.yaml`; StateStore holds catalog metadata, sessions, and audit.
+- Similarity search ≠ RAG: providers retrieve hits; agent graphs compose RAG (retrieve → prompt → LLM).

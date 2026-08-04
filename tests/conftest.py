@@ -6,6 +6,7 @@ import pytest
 
 from edim_dde_ai.content.registry import clear_content_providers
 from edim_dde_ai.observability import clear_observability_provider
+from edim_dde_ai.retrieval import clear_corpora, clear_retrieval_provider
 from edim_dde_ai.store import clear_state_store
 from edim_dde_ai.registry.agents import clear_agent_registry
 from edim_dde_ai.registry.chains import clear_chain_invokers
@@ -21,6 +22,8 @@ def _clear_all() -> None:
     clear_content_providers()
     clear_observability_provider()
     clear_state_store()
+    clear_retrieval_provider()
+    clear_corpora()
 
 
 @pytest.fixture(autouse=True)
