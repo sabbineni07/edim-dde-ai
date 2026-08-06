@@ -1,5 +1,7 @@
 # EDIM DDE AI — Design
 
+> **Engineer guide (sequential path):** start at [`edim-dde-domain/docs/README.md`](../../edim-dde-domain/docs/README.md) → **[End-to-end design](../../edim-dde-domain/docs/architecture/end-to-end-design.md)**. This file is the package-owned deep dive for `edim-dde-ai` internals.
+
 ## Purpose
 
 `edim-dde-ai` is a **YAML-driven LangGraph agent framework** packaged as an installable wheel.
@@ -75,7 +77,7 @@ graph.runtime.MetadataAgent  (invoke / ainvoke)
 
 - Backed by `Registry[NodeFactory]` seeded from `nodes.builtin.BUILTIN_NODE_FACTORIES`.
 - `register_node(type_id, factory)` allowlists a node type.
-- Builtin types: `passthrough`, `set_value`, `echo_result`, `llm_chain`.
+- Builtin types: `passthrough`, `set_value`, `echo_result`, `llm_chain`, `invoke_agent`, `rag.retrieve`.
 - Custom types are registered in application code before loading YAML.
 
 ### Agent registry (`registry/agents.py`)
