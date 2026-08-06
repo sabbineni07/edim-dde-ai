@@ -36,7 +36,7 @@ Repository = "https://github.com/sabbineni07/edim-dde-ai"
 Documentation = "https://github.com/sabbineni07/edim-dde-ai/tree/main/docs"
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "build>=1.0"]
+dev = ["pytest>=8", "build>=1.0", "jsonschema>=4.0"]
 release = ["build>=1.0", "twine>=5.0"]
 observability = ["langsmith>=0.1"]
 mlflow = ["mlflow>=2.14"]

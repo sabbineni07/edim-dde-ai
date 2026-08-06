@@ -35,8 +35,11 @@ install-req-dev: ## Install runtime + dev deps from requirements-dev.txt
 test: ## Run pytest
 	$(PYTHON) -m pytest -q
 
-validate: ## Validate example agent YAML
+validate: ## Validate example agent YAML (structural CLI)
 	$(PACKAGE) validate $(EXAMPLE_YAML)
+
+validate-schema: ## BL-002: JSON Schema + extended blocks for examples (pytest)
+	$(PYTHON) -m pytest -q tests/test_example_agent_schema.py
 
 register: ## Register example agent YAML into CLI store
 	$(PACKAGE) register $(EXAMPLE_YAML)

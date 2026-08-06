@@ -20,7 +20,16 @@
     },
     "content_dir": { "type": "string" },
     "prompts": { "type": "object" },
-    "skills": { "type": "object" },
+    "skills": {
+      "description": "Inline skills as map or list of {key,title,content}",
+      "oneOf": [
+        { "type": "object" },
+        {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      ]
+    },
     "metadata": {
       "type": "object",
       "properties": {
@@ -95,7 +104,13 @@
         },
         "edges": { "type": "array" },
         "conditional_edges": { "type": "array" },
-        "routes": { "type": "object" }
+        "routes": {
+          "description": "Route sugar (list) or legacy map form",
+          "oneOf": [
+            { "type": "array" },
+            { "type": "object" }
+          ]
+        }
       },
       "additionalProperties": true
     }
