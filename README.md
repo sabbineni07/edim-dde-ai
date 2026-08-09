@@ -11,7 +11,6 @@ Compose agent graphs in YAML; implement node types in Python via an allowlisted 
 | CLI | `edim-dde-ai` |
 | Python | `>=3.10` |
 | Version | `0.1.0` |
-| Project path | `/Users/sabbineni/projects/edim/edim-dde-ai` |
 
 Further reading:
 
@@ -122,7 +121,7 @@ Full design notes: [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Setup
 
-From the project root (`/Users/sabbineni/projects/edim/edim-dde-ai`):
+From the `edim-dde-ai` package root:
 
 ### Option A — Make (recommended)
 

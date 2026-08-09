@@ -1,6 +1,6 @@
 # Changelog — edim-dde-ai
 
-## 1.0.0 — 2026-07-31 (Release 1 / Phase 0)
+## 1.0.0 — 2026-07-31 (Release 1)
 
 ### Added
 - Canonical agent JSON Schema (`schemas/agent.schema.json`) and extended-block validation (`schema` package)
@@ -14,6 +14,6 @@
 - Optional extras: `[postgres]`, `[cosmos]`, `[redis]`, `[faiss]`, `[azure-search]`, `[databricks-vector]`, `[retrieval]`
 
 ### Notes
-- **Tag + changelog only** for this release — publishing wheels to an internal index (Artifactory/etc.) remains an ops step when you are ready; no publish was performed as part of Phase 0.
+- **Tag + changelog only** for this release — publishing wheels to an internal index (Artifactory/etc.) remains an ops step when you are ready; no publish was performed as part of R1.
 - Azure DevOps / Git remains source of truth for `*.agent.yaml`; StateStore holds catalog metadata, sessions, and audit.
 - Similarity search ≠ RAG: providers retrieve hits; agent graphs compose RAG (retrieve → prompt → LLM).

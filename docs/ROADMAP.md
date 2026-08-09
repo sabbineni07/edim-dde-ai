@@ -56,7 +56,7 @@
 
 - **2026-07-23** — Renamed project from `edim-ai-foundation` / `edim_ai_foundation`
   to `edim-dde-ai` / `edim_dde_ai` (CLI, env `EDIM_DDE_AI_STORE`, store `~/.edim-dde-ai`,
-  display title EDIM DDE AI). Path: `/Users/sabbineni/projects/edim/edim-dde-ai`.
+  display title EDIM DDE AI). Package: `edim-dde-ai`.
 
 - **2026-07-23** — Phase 2: distribution readiness (`[project.urls]`, classifiers,
   `[release]` extra, `scripts/publish.sh`, `docs/PUBLISHING.md`, `make release`/`publish`)
@@ -67,8 +67,7 @@
   `ConditionalEdgeSpec.config`; `get_router_factory` (+ `get_router` alias);
   `source`-only conditional edges; engineer module docstrings; pytest green.
 
-- **2026-07-22** — Phase 0 (scaffold) and Phase 1 (core runtime) completed.
-  Package location: `/Users/sabbineni/projects/edim/edim-dde-ai`
+- **2026-07-22** — Scaffold and core runtime completed (`edim-dde-ai`).
   (`edim-dde-ai` / import `edim_dde_ai`).
 
 - **2026-07-22** — Reorganized package into subpackages (`core`, `registry`, `graph`, `api`, `cli`, `nodes`) while keeping the public `edim_dde_ai` API and CLI entry point stable.
