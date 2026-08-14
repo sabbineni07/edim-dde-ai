@@ -91,6 +91,8 @@ def test_configure_memory_from_env(monkeypatch):
     clear_state_store()
 
 
-def test_postgres_requires_package_or_dsn():
+def test_postgres_requires_package_or_dsn(monkeypatch):
+    monkeypatch.delenv("EDIM_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     with pytest.raises(RuntimeError):
         create_state_store("postgres")
