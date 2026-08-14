@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
-from urllib.parse import urlparse
 
+from edim_dde_ai.store.connection_env import resolve_postgres_dsn
 from edim_dde_ai.store.models import AgentRecord, AuditEvent, SessionRecord
 
 logger = logging.getLogger(__name__)
@@ -52,26 +52,9 @@ class PostgresStateStore:
                 "Install: pip install 'edim-dde-ai[postgres]'"
             ) from exc
 
-        import os
-
         self._psycopg = psycopg
         self._dict_row = dict_row
-        self._dsn = (
-            dsn
-            or os.environ.get("EDIM_DATABASE_URL")
-            or os.environ.get("DATABASE_URL")
-            or ""
-        ).strip()
-        if not self._dsn:
-            raise RuntimeError(
-                "Postgres state store requires EDIM_DATABASE_URL or DATABASE_URL"
-            )
-        # Soft-validate URL shape
-        parsed = urlparse(self._dsn)
-        if parsed.scheme not in {"postgresql", "postgres"}:
-            raise RuntimeError(
-                f"EDIM_DATABASE_URL must be postgresql://… (got scheme={parsed.scheme!r})"
-            )
+        self._dsn = resolve_postgres_dsn(dsn)
         self.ensure_schema()
 
     @property

@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Any
 
+from edim_dde_ai.store.connection_env import resolve_redis_settings
 from edim_dde_ai.store.models import AgentRecord, AuditEvent, SessionRecord
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,10 @@ class RedisStateStore:
                 "Install: pip install 'edim-dde-ai[redis]'"
             ) from exc
 
-        url = (url or os.environ.get("EDIM_REDIS_URL") or "redis://localhost:6379/0").strip()
-        self._prefix = (prefix or os.environ.get("EDIM_REDIS_PREFIX") or "edim").strip()
+        resolved_url, resolved_prefix = resolve_redis_settings(url, prefix=prefix)
+        self._prefix = resolved_prefix
         self._audit_max = int(os.environ.get("EDIM_REDIS_AUDIT_MAX", "1000"))
-        self._r = redis.Redis.from_url(url, decode_responses=True)
+        self._r = redis.Redis.from_url(resolved_url, decode_responses=True)
 
     @property
     def name(self) -> str:

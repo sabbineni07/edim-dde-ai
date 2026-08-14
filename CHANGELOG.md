@@ -1,4 +1,8 @@
-# Changelog — edim-dde-ai
+## Unreleased
+
+### Added
+- **Pluggable RecommendationStore** (`recommendations/`): `none` · `memory` · `postgres` · `cosmos` · `redis`; `configure_recommendation_store_from_env` / `EDIM_RECOMMENDATION_STORE` (default inherits `EDIM_STATE_STORE`)
+- Shared `store/connection_env.py` for Postgres/Cosmos/Redis DSN resolution (StateStore + RecommendationStore)
 
 ## 1.0.0 — 2026-07-31 (Release 1)
 

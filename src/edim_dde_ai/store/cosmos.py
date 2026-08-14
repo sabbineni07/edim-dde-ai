@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any
 
+from edim_dde_ai.store.connection_env import resolve_cosmos_account
 from edim_dde_ai.store.models import AgentRecord, AuditEvent, SessionRecord
 
 logger = logging.getLogger(__name__)
@@ -40,15 +41,11 @@ class CosmosStateStore:
                 "Install: pip install 'edim-dde-ai[cosmos]'"
             ) from exc
 
-        endpoint = (endpoint or os.environ.get("EDIM_COSMOS_ENDPOINT") or "").strip()
-        key = (key or os.environ.get("EDIM_COSMOS_KEY") or "").strip()
-        if not endpoint or not key:
-            raise RuntimeError(
-                "Cosmos state store requires EDIM_COSMOS_ENDPOINT and EDIM_COSMOS_KEY"
-            )
+        endpoint, key, db_name = resolve_cosmos_account(
+            endpoint=endpoint, key=key, database=database
+        )
 
         self._PartitionKey = PartitionKey
-        db_name = (database or os.environ.get("EDIM_COSMOS_DATABASE") or "edim").strip()
         agents_c = os.environ.get("EDIM_COSMOS_AGENTS_CONTAINER", "agents").strip()
         sessions_c = os.environ.get("EDIM_COSMOS_SESSIONS_CONTAINER", "sessions").strip()
         audit_c = os.environ.get("EDIM_COSMOS_AUDIT_CONTAINER", "audit").strip()
