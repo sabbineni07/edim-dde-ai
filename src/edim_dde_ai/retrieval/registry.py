@@ -117,18 +117,33 @@ def search_corpus(
     top_k: int = 5,
     search_mode: str = "hybrid",
     filters: dict[str, Any] | None = None,
+    dedupe: bool = True,
 ) -> list[RetrievalHit]:
-    """Convenience search using corpus-aware provider resolution."""
+    """Convenience search using corpus-aware provider resolution.
+
+    When ``dedupe`` is true (default), drops duplicate ``id`` then duplicate
+    action signatures / content hashes so prompts do not repeat the same
+    guidance or past action.
+    """
     provider = provider_for_corpus(corpus)
-    return provider.search(
+    # Over-fetch slightly so de-dupe can still fill top_k
+    fetch_k = max(1, int(top_k))
+    if dedupe:
+        fetch_k = min(max(fetch_k * 3, fetch_k + 5), 50)
+    hits = provider.search(
         SearchRequest(
             query=query,
             corpus=corpus,
-            top_k=top_k,
+            top_k=fetch_k,
             search_mode=search_mode,
             filters=dict(filters or {}),
         )
     )
+    if dedupe:
+        from edim_dde_ai.experiences.dedupe import dedupe_retrieval_hits
+
+        hits = dedupe_retrieval_hits(hits)
+    return hits[: max(1, int(top_k))]
 
 
 __all__ = [

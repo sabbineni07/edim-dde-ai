@@ -1,6 +1,7 @@
 ## Unreleased
 
 ### Added
+- **Experience index** (`experiences/`): `ExperienceDocument`, `ExperienceTransform` registry, `ExperienceIndexingStore` proxy on RecommendationStore writes, `maybe_index_experience`, retrieve-time `dedupe_retrieval_hits` (collapsed duplicates counted via `metadata.occurrences` / `also_job_ids`); `search_corpus(..., dedupe=True)` default
 - **Pluggable RecommendationStore** (`recommendations/`): `none` · `memory` · `postgres` · `cosmos` · `redis`; `configure_recommendation_store_from_env` / `EDIM_RECOMMENDATION_STORE` (default inherits `EDIM_STATE_STORE`)
 - Shared `store/connection_env.py` for Postgres/Cosmos/Redis DSN resolution (StateStore + RecommendationStore)
 

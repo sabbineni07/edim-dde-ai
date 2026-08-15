@@ -18,9 +18,13 @@ _STORE: RecommendationStore = NoneRecommendationStore()
 
 def set_recommendation_store(store: RecommendationStore) -> None:
     global _STORE
-    _STORE = store
+    from edim_dde_ai.experiences.registry import wrap_recommendation_store
+
+    wrapped = wrap_recommendation_store(store)
+    _STORE = wrapped
     logger.info(
-        "Recommendation store set to %s", getattr(store, "name", type(store).__name__)
+        "Recommendation store set to %s",
+        getattr(wrapped, "name", type(wrapped).__name__),
     )
 
 
