@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass
 class ExperienceDocument:
-    """Canonical situation/action card indexed into a RetrievalProvider corpus.
+    """Canonical feature/action card indexed into a RetrievalProvider corpus.
 
     ``RecommendationStore`` remains the system of record. This document is a
     **derived** artifact: upsert by ``doc_id`` (== ``recommendation_id``) so
@@ -18,7 +18,7 @@ class ExperienceDocument:
     doc_id: str
     corpus: str
     text: str
-    situation_labels: list[str] = field(default_factory=list)
+    feature_labels: list[str] = field(default_factory=list)
     action_signature: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     source: str | None = None
@@ -32,7 +32,14 @@ class ExperienceDocument:
             doc_id=str(data.get("doc_id") or ""),
             corpus=str(data.get("corpus") or ""),
             text=str(data.get("text") or ""),
-            situation_labels=[str(s) for s in (data.get("situation_labels") or [])],
+            feature_labels=[
+                str(s)
+                for s in (
+                    data.get("feature_labels")
+                    or data.get("situation_labels")  # legacy serialized cards
+                    or []
+                )
+            ],
             action_signature=str(data.get("action_signature") or ""),
             metadata=dict(data.get("metadata") or {}),
             source=(str(data["source"]) if data.get("source") is not None else None),

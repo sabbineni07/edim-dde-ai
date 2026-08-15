@@ -41,6 +41,11 @@ from edim_dde_ai.retrieval import (
     get_retrieval_provider,
     set_retrieval_provider,
 )
+from edim_dde_ai.evaluation import (
+    evaluate,
+    get_evaluator,
+    register_evaluator,
+)
 from edim_dde_ai.registry.agents import (
     create_agent,
     get_agent_definition,
@@ -89,4 +94,7 @@ __all__ = [
     "set_retrieval_provider",
     "get_retrieval_provider",
     "configure_retrieval_from_env",
+    "register_evaluator",
+    "get_evaluator",
+    "evaluate",
 ]

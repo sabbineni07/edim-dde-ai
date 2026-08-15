@@ -80,7 +80,7 @@ def upsert_experience_document(
             return False
 
         meta = dict(doc.metadata or {})
-        meta.setdefault("situation_labels", list(doc.situation_labels))
+        meta.setdefault("feature_labels", list(doc.feature_labels))
         meta.setdefault("action_signature", doc.action_signature)
         provider.upsert(
             corpus=doc.corpus,

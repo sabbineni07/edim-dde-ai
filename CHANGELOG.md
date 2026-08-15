@@ -1,7 +1,12 @@
 ## Unreleased
 
 ### Added
+- **Evaluation framework seam** (`evaluation/`): `Evaluator` Strategy,
+  `EvaluationResult` (quality score vs evidence-based confidence), registry and
+  `evaluate(...)` facade for deterministic or future model-based rubrics
 - **Experience index** (`experiences/`): `ExperienceDocument`, `ExperienceTransform` registry, `ExperienceIndexingStore` proxy on RecommendationStore writes, `maybe_index_experience`, retrieve-time `dedupe_retrieval_hits` (collapsed duplicates counted via `metadata.occurrences` / `also_job_ids`); `search_corpus(..., dedupe=True)` default
+- `ExperienceDocument.feature_labels` replaces scenario-specific
+  `situation_labels`; deserialization still accepts the legacy field for replay
 - **Pluggable RecommendationStore** (`recommendations/`): `none` · `memory` · `postgres` · `cosmos` · `redis`; `configure_recommendation_store_from_env` / `EDIM_RECOMMENDATION_STORE` (default inherits `EDIM_STATE_STORE`)
 - Shared `store/connection_env.py` for Postgres/Cosmos/Redis DSN resolution (StateStore + RecommendationStore)
 
