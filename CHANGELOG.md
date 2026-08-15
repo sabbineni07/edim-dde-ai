@@ -1,6 +1,9 @@
 ## Unreleased
 
 ### Added
+- **Pluggable public-web search** (`web/`): provider Strategy + registry,
+  `none`/`memory`/host-managed `http_json` adapters, and bounded opt-in
+  `web.search` graph node with domain allowlisting and non-fatal fallback
 - **Evaluation framework seam** (`evaluation/`): `Evaluator` Strategy,
   `EvaluationResult` (quality score vs evidence-based confidence), registry and
   `evaluate(...)` facade for deterministic or future model-based rubrics

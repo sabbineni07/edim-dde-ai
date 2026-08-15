@@ -46,6 +46,11 @@ from edim_dde_ai.evaluation import (
     get_evaluator,
     register_evaluator,
 )
+from edim_dde_ai.web import (
+    configure_web_search_from_env,
+    get_web_search_provider,
+    set_web_search_provider,
+)
 from edim_dde_ai.registry.agents import (
     create_agent,
     get_agent_definition,
@@ -97,4 +102,7 @@ __all__ = [
     "register_evaluator",
     "get_evaluator",
     "evaluate",
+    "set_web_search_provider",
+    "get_web_search_provider",
+    "configure_web_search_from_env",
 ]

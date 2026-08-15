@@ -12,6 +12,7 @@ Product agents add more types via ``register_node``.
 from __future__ import annotations
 
 import contextvars
+import logging
 import re
 from typing import Any
 
@@ -21,6 +22,7 @@ from edim_dde_ai.errors import ChainInvokerError
 from edim_dde_ai.registry.chains import get_chain_invoker, list_chain_invokers
 
 _TEMPLATE_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+logger = logging.getLogger(__name__)
 _INVOKE_AGENT_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar(
     "edim_invoke_agent_depth", default=0
 )
@@ -230,6 +232,67 @@ def rag_retrieve_factory(config: dict[str, Any]):
     return _node
 
 
+def web_search_factory(config: dict[str, Any]):
+    """Bounded, opt-in public-web search via ``WebSearchProvider``.
+
+    The product/domain node is responsible for constructing a sanitized query;
+    this generic node never sends arbitrary state or prompt contents.
+    """
+    enabled = bool(config.get("enabled", False))
+    query_key = str(config.get("query_key") or "web_search_query")
+    output_key = str(config.get("output_key") or "web_search_hits")
+    context_key = str(config.get("context_key") or "web_search_context")
+    top_k = max(1, min(int(config.get("top_k", 3)), 10))
+    domains = tuple(
+        str(value).strip().lower()
+        for value in (config.get("allowed_domains") or [])
+        if str(value).strip()
+    )
+
+    def _node(state: dict[str, Any]) -> dict[str, Any]:
+        if not enabled:
+            return {
+                output_key: [],
+                context_key: "(web search disabled by agent configuration)",
+            }
+        query = str(state.get(query_key) or "").strip()
+        if not query:
+            return {
+                output_key: [],
+                context_key: "(web search not triggered for this analysis)",
+            }
+
+        from edim_dde_ai.web import WebSearchRequest, get_web_search_provider
+
+        provider = get_web_search_provider()
+        if getattr(provider, "name", "none") == "none":
+            return {
+                output_key: [],
+                context_key: "(web search enabled but no provider is configured)",
+            }
+        try:
+            hits = provider.search(
+                WebSearchRequest(query=query, top_k=top_k, domains=domains)
+            )
+        except Exception as exc:
+            # Online enrichment must not make evidence-based diagnosis fail.
+            logger.warning("web search enrichment failed: %s", type(exc).__name__)
+            return {
+                output_key: [],
+                context_key: "(web search provider failed; analysis continued offline)",
+            }
+        lines = [
+            f"[web:{index}] {hit.title}\nURL: {hit.url}\n{hit.snippet}".strip()
+            for index, hit in enumerate(hits[:top_k], start=1)
+        ]
+        return {
+            output_key: [hit.to_dict() for hit in hits[:top_k]],
+            context_key: "\n\n".join(lines) if lines else "(no web results)",
+        }
+
+    return _node
+
+
 # Single source of truth for builtin type_id → factory (seeded into the node registry).
 BUILTIN_NODE_FACTORIES = {
     "passthrough": passthrough_factory,
@@ -238,4 +301,5 @@ BUILTIN_NODE_FACTORIES = {
     "llm_chain": llm_chain_factory,
     "invoke_agent": invoke_agent_factory,
     "rag.retrieve": rag_retrieve_factory,
+    "web.search": web_search_factory,
 }
