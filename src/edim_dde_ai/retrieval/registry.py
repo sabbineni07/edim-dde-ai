@@ -193,6 +193,8 @@ def search_corpus(
     filters: dict[str, Any] | None = None,
     dedupe: bool = True,
     status_boost: bool = True,
+    endpoint: str | None = None,
+    index: str | None = None,
 ) -> list[RetrievalHit]:
     """Convenience search using corpus-aware provider resolution.
 
@@ -207,6 +209,13 @@ def search_corpus(
     ``applied`` / ``accepted`` experience hits (no-op when metadata has no
     status — e.g. runbooks).
 
+    ``endpoint`` / ``index`` come from agent ``bindings.search`` (via
+    ``rag.retrieve``). When set, Azure Search uses that service URL and/or
+    remaps the logical ``corpus`` to the physical ``index``. Search key still
+    comes from ``EDIM_AZURE_SEARCH_KEY`` (never YAML). Non-Azure backends
+    ignore ``endpoint``; ``index`` remaps the in-memory / FAISS corpus key
+    for the call.
+
     Args:
         query: Search text.
         corpus: Logical corpus name.
@@ -216,6 +225,8 @@ def search_corpus(
             all backends). Prefer over-fetch via ``dedupe`` when filtering.
         dedupe: When true, over-fetch then run ``dedupe_retrieval_hits``.
         status_boost: When true, prefer accepted/applied outcomes in ranking.
+        endpoint: Optional Azure Search service URL override.
+        index: Optional physical index (or memory corpus key) override.
 
     Returns:
         Up to ``top_k`` ranked ``RetrievalHit`` rows.
@@ -225,15 +236,21 @@ def search_corpus(
         hits = search_corpus("OOM executor", corpus="spark-runbooks", top_k=5)
         ctx = format_hits_as_context(hits)
     """
-    provider = provider_for_corpus(corpus)
+    provider = _provider_for_search(
+        corpus, endpoint=endpoint, index=index
+    )
     # Over-fetch slightly so de-dupe / filters can still fill top_k
     fetch_k = max(1, int(top_k))
     if dedupe or filters:
         fetch_k = min(max(fetch_k * 3, fetch_k + 5), 50)
+    search_corpus_name = corpus
+    if index and getattr(provider, "name", "") in {"memory", "faiss", "none"}:
+        # Non-Azure: treat index as the bag / directory key for this call.
+        search_corpus_name = index
     hits = provider.search(
         SearchRequest(
             query=query,
-            corpus=corpus,
+            corpus=search_corpus_name,
             top_k=fetch_k,
             search_mode=search_mode,
             filters=dict(filters or {}),
@@ -252,6 +269,44 @@ def search_corpus(
 
         hits = apply_status_boost(hits)
     return hits[: max(1, int(top_k))]
+
+
+def _provider_for_search(
+    corpus: str,
+    *,
+    endpoint: str | None,
+    index: str | None,
+) -> RetrievalProvider:
+    """Resolve provider, applying optional Search binding overrides."""
+    if not endpoint and not index:
+        return provider_for_corpus(corpus)
+
+    base = provider_for_corpus(corpus)
+    base_name = getattr(base, "name", "") or ""
+
+    # Azure path (or explicit endpoint): one-shot client with overrides.
+    if endpoint or base_name == "azure_ai_search":
+        kwargs: dict[str, Any] = {}
+        if endpoint:
+            kwargs["endpoint"] = endpoint
+        if index:
+            kwargs["default_index"] = index
+            kwargs["corpus_indexes"] = {corpus: index}
+        try:
+            return create_retrieval_provider("azure_ai_search", **kwargs)
+        except RuntimeError:
+            # Tests / local memory without azure-search-documents: fall through.
+            if endpoint:
+                raise
+            logger.debug(
+                "Search binding index override skipped (azure unavailable); "
+                "using process provider for corpus=%s",
+                corpus,
+                exc_info=True,
+            )
+            return base
+
+    return base
 
 
 __all__ = [

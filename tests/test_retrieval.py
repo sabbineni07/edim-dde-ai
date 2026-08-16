@@ -49,6 +49,24 @@ def test_memory_search_and_format():
     assert "OutOfMemoryError" in ctx
 
 
+def test_memory_search_index_override_remaps_corpus():
+    store = MemoryRetrieval()
+    store.upsert(
+        corpus="physical-index-v2",
+        doc_id="oom",
+        text="Executor OutOfMemoryError overhead guidance",
+        source="oom.md",
+    )
+    set_retrieval_provider(store)
+    hits = search_corpus(
+        "OutOfMemoryError",
+        corpus="spark-runbooks",
+        top_k=3,
+        index="physical-index-v2",
+    )
+    assert hits and hits[0].id == "oom"
+
+
 def test_configure_none_from_env(monkeypatch):
     monkeypatch.setenv("EDIM_RETRIEVAL", "none")
     p = configure_retrieval_from_env()

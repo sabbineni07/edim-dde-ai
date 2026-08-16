@@ -10,8 +10,10 @@ from edim_dde_ai import create_agent, register_from_yaml
 from edim_dde_ai.core.bindings import (
     AgentBindings,
     LlmBinding,
+    SearchBinding,
     parse_agent_bindings,
     resolve_llm_binding,
+    resolve_search_binding,
 )
 from edim_dde_ai.core.definition import parse_agent_definition
 from edim_dde_ai.core.env_refs import EnvRefError
@@ -174,6 +176,34 @@ def test_resolve_llm_binding_fail_closed():
         resolve_llm_binding(bindings, environ={})
 
 
+def test_resolve_search_binding_env():
+    bindings = AgentBindings(
+        search=SearchBinding(
+            endpoint="${ENV:S_EP}",
+            index="${ENV:S_IDX}",
+        )
+    )
+    resolved = resolve_search_binding(
+        bindings, environ={"S_EP": "https://search.example", "S_IDX": "runbooks-v2"}
+    )
+    assert resolved.endpoint == "https://search.example"
+    assert resolved.index == "runbooks-v2"
+
+
+def test_resolve_search_binding_fail_closed():
+    bindings = AgentBindings(
+        search=SearchBinding(endpoint="${ENV:MISSING}", index=None)
+    )
+    with pytest.raises(EnvRefError):
+        resolve_search_binding(bindings, environ={})
+
+
+def test_resolve_search_binding_omitted():
+    resolved = resolve_search_binding(None)
+    assert resolved.endpoint is None
+    assert resolved.index is None
+
+
 def test_graph_builder_injects_llm_bindings(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("EDIM_FOUNDRY_ENDPOINT_RCA", "https://rca.example.com")
     monkeypatch.setenv("EDIM_FOUNDRY_DEPLOYMENT_RCA", "gpt-rca")
@@ -248,3 +278,51 @@ graph:
     assert "endpoint" not in captured
     assert "deployment" not in captured
     assert "temperature" not in captured
+
+
+def test_graph_builder_injects_search_bindings(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("EDIM_AZURE_SEARCH_ENDPOINT_RCA", "https://rca-search.example")
+    monkeypatch.setenv("EDIM_AZURE_SEARCH_INDEX_RCA", "spark-runbooks-v2")
+
+    captured: dict = {}
+
+    def _fake_search_corpus(query, **kwargs):
+        captured.clear()
+        captured["query"] = query
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(
+        "edim_dde_ai.retrieval.search_corpus", _fake_search_corpus
+    )
+    # rag_retrieve_factory imports search_corpus inside the node — patch module used.
+    monkeypatch.setattr(
+        "edim_dde_ai.retrieval.registry.search_corpus", _fake_search_corpus
+    )
+
+    yaml_text = """
+agent_id: bindings_search_demo
+bindings:
+  search:
+    endpoint: ${ENV:EDIM_AZURE_SEARCH_ENDPOINT_RCA}
+    index: ${ENV:EDIM_AZURE_SEARCH_INDEX_RCA}
+graph:
+  entry: retrieve
+  nodes:
+    - id: retrieve
+      type: rag.retrieve
+      corpus: spark-runbooks
+      top_k: 3
+      query: OOM executor
+      output_key: hits
+      context_key: ctx
+  edges:
+    - [retrieve, END]
+"""
+    path = tmp_path / "bindings_search.agent.yaml"
+    path.write_text(yaml_text, encoding="utf-8")
+    register_from_yaml(path)
+    create_agent("bindings_search_demo").invoke({})
+    assert captured.get("endpoint") == "https://rca-search.example"
+    assert captured.get("index") == "spark-runbooks-v2"
+    assert captured.get("corpus") == "spark-runbooks"

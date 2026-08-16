@@ -1,4 +1,4 @@
-"""Optional per-agent infra bindings (Phase 1: LLM wired; other planes parsed).
+"""Optional per-agent infra bindings (LLM + Search wired; cosmos/sql shape-only).
 
 Business purpose
 ----------------
@@ -7,21 +7,21 @@ needs a different target, declare optional ``bindings.*`` in YAML using
 ``${ENV:VAR}`` refs for URLs/names — never embed secrets. LLM sampling knobs
 (``temperature``, ``top_p``, ``top_k``, ``max_tokens``) are **literal** values.
 
-Resolution (LLM — Phase 1)
---------------------------
+Resolution (LLM + Search)
+-------------------------
 1. String keys present → ``resolve_env_ref`` (fail closed if env missing)
-2. Numeric knobs present → validated literals (injected into ``llm_chain``)
-3. Key omitted → ``None`` (caller / Foundry uses process / chain defaults)
+2. Numeric LLM knobs present → validated literals (injected into ``llm_chain``)
+3. Key omitted → ``None`` (caller uses process / chain defaults)
 4. Entire ``bindings`` omitted → all globals
 
-``search`` / ``cosmos`` / ``sql-warehouse`` are shape-validated today so agent
-YAML can document them; runtime injection for those planes is later.
+``cosmos`` / ``sql-warehouse`` are shape-validated today; runtime injection later.
 
 Public API
 ----------
 * ``LlmBinding`` / ``SearchBinding`` / ``CosmosBinding`` / ``SqlWarehouseBinding``
 * ``AgentBindings`` / ``parse_agent_bindings``
 * ``resolve_llm_binding`` — env-resolved + literal LLM knobs (None = default)
+* ``resolve_search_binding`` — env-resolved Search endpoint/index (None = default)
 """
 
 from __future__ import annotations
@@ -56,11 +56,12 @@ class LlmBinding:
 
 @dataclass(frozen=True)
 class SearchBinding:
-    """Optional Azure AI Search overrides (shape only until Phase 2 wiring).
+    """Optional Azure AI Search overrides for ``rag.retrieve`` nodes.
 
     Attributes:
         endpoint: Search service URL, or ``${ENV:…}``, or None.
-        index: Physical index name, or ``${ENV:…}``, or None.
+        index: Physical index name for this agent's retrieve nodes, or
+            ``${ENV:…}``, or None. Key stays ``EDIM_AZURE_SEARCH_KEY``.
     """
 
     endpoint: str | None = None
@@ -98,8 +99,8 @@ class AgentBindings:
     """Optional top-level ``bindings`` block on an agent definition.
 
     Attributes:
-        llm: Phase 1 LLM plane (resolved at graph build).
-        search: Azure AI Search plane (parsed; wiring later).
+        llm: LLM plane (resolved at graph build into ``llm_chain``).
+        search: Azure AI Search plane (resolved into ``rag.retrieve``).
         cosmos: Cosmos DB plane (parsed; wiring later).
         sql_warehouse: Databricks SQL warehouse (YAML: ``sql-warehouse``).
     """
@@ -128,6 +129,21 @@ class ResolvedLlmBinding:
     top_p: float | None = None
     top_k: int | None = None
     max_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedSearchBinding:
+    """Env-resolved Azure AI Search target for ``rag.retrieve``.
+
+    ``None`` fields mean use process ``EDIM_AZURE_SEARCH_*`` / CORPUS_MAP.
+
+    Attributes:
+        endpoint: Concrete Search service URL, or None.
+        index: Concrete physical index name, or None.
+    """
+
+    endpoint: str | None = None
+    index: str | None = None
 
 
 def _optional_str_field(
@@ -301,3 +317,36 @@ def resolve_llm_binding(
         top_k=llm.top_k,
         max_tokens=llm.max_tokens,
     )
+
+
+def resolve_search_binding(
+    bindings: AgentBindings | None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> ResolvedSearchBinding:
+    """Resolve ``bindings.search`` env refs for ``rag.retrieve`` injection.
+
+    Args:
+        bindings: Parsed agent bindings (may be ``None``).
+        environ: Optional env map for tests.
+
+    Returns:
+        ``ResolvedSearchBinding`` with concrete strings or ``None`` per field.
+
+    Raises:
+        EnvRefError: Declared ``${ENV:…}`` missing/empty.
+    """
+    if bindings is None or bindings.search is None:
+        return ResolvedSearchBinding()
+    search = bindings.search
+    endpoint = resolve_env_ref(
+        search.endpoint,
+        environ=environ,
+        field_path="bindings.search.endpoint",
+    )
+    index = resolve_env_ref(
+        search.index,
+        environ=environ,
+        field_path="bindings.search.index",
+    )
+    return ResolvedSearchBinding(endpoint=endpoint, index=index)

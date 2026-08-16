@@ -311,6 +311,8 @@ def rag_retrieve_factory(config: dict[str, Any]):
       output_key: str — hits list key (default ``retrieval_hits``)
       context_key: str — formatted text key (default ``retrieval_context``)
       skip_if_empty_query: bool — no-op when query blank (default True)
+      endpoint: str — optional Search service URL (from ``bindings.search``)
+      index: str — optional physical index override (from ``bindings.search``)
 
     Query resolution order: ``query`` → ``query_key`` → ``query_keys`` →
     auto keys ``retrieval_query`` / ``query`` / ``question`` / ``user_query``.
@@ -338,6 +340,8 @@ def rag_retrieve_factory(config: dict[str, Any]):
     literal_query = config.get("query")
     query_key = config.get("query_key")
     query_keys = config.get("query_keys")
+    override_endpoint = config.get("endpoint")
+    override_index = config.get("index")
 
     def _resolve_query(state: dict[str, Any]) -> str:
         if isinstance(literal_query, str) and literal_query.strip():
@@ -369,6 +373,16 @@ def rag_retrieve_factory(config: dict[str, Any]):
             corpus=corpus,
             top_k=top_k,
             search_mode=search_mode,
+            endpoint=(
+                str(override_endpoint).strip()
+                if isinstance(override_endpoint, str) and str(override_endpoint).strip()
+                else None
+            ),
+            index=(
+                str(override_index).strip()
+                if isinstance(override_index, str) and str(override_index).strip()
+                else None
+            ),
         )
         return {
             output_key: [h.to_dict() for h in hits],
