@@ -1,4 +1,29 @@
-"""Pluggable retrieval / similarity search (FAISS · Azure AI Search · Databricks)."""
+"""Pluggable retrieval / similarity search (FAISS · Azure AI Search · Databricks).
+
+Business purpose
+----------------
+Agents (runbooks, RCA, cluster tuning) need ranked knowledge chunks injected
+into prompts. This package is the **retrieval seam** — domain graphs call
+``search_corpus`` / ``RetrievalProvider.search`` and never talk to FAISS,
+Azure AI Search, or Databricks Vector Search SDKs directly.
+
+Public API
+----------
+* ``RetrievalProvider`` — strategy protocol (``protocols``)
+* ``RetrievalHit`` / ``SearchRequest`` / ``format_hits_as_context`` — models
+* ``NoOpRetrieval`` / ``MemoryRetrieval`` — always-importable backends
+* Corpus helpers — ``CorpusConfig``, ``register_corpus``, ``load_corpora_yaml``, …
+* Registry — ``configure_retrieval_from_env``, ``search_corpus``, ``provider_for_corpus``, …
+
+Heavy backends (``FaissRetrieval``, ``AzureAISearchRetrieval``,
+``DatabricksVectorRetrieval``, ``build_faiss_index_from_dir``) are lazy via
+``__getattr__`` so importing this package does not pull optional extras.
+
+Env
+---
+* ``EDIM_RETRIEVAL`` — ``none`` | ``memory`` | ``faiss`` | ``azure_ai_search`` |
+  ``databricks_vector`` (see ``registry.resolve_retrieval_name``)
+"""
 
 from edim_dde_ai.retrieval.corpus import (
     CorpusConfig,
@@ -52,6 +77,7 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    """Lazy-load optional retrieval backends (avoids hard deps at import time)."""
     if name == "FaissRetrieval":
         from edim_dde_ai.retrieval.faiss_provider import FaissRetrieval
 

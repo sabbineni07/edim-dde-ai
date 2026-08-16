@@ -1,7 +1,15 @@
 """Load agent definitions from YAML files and directories.
 
-Reads YAML, then delegates validation to ``parse_agent_definition``. Raises
-``LoaderError`` for I/O / YAML issues; ``DefinitionError`` for schema issues.
+Business purpose:
+  Read YAML from disk, then delegate validation to ``parse_agent_definition``.
+  Sets ``source_path`` so relative ``content_dir`` resolves at register time.
+
+Public API:
+  - ``load_yaml(path)``
+  - ``load_paths(paths)``
+  - ``load_directory(directory, pattern=..., *, recursive=False)``
+
+Raises ``LoaderError`` for I/O / YAML issues; ``DefinitionError`` for schema issues.
 
 Example::
 
@@ -10,7 +18,6 @@ Example::
     defn = load_yaml("demo.agent.yaml")
     defs = load_directory("./agents", pattern="*.agent.yaml")
 """
-
 
 from __future__ import annotations
 
@@ -25,6 +32,7 @@ from edim_dde_ai.errors import LoaderError
 
 
 def _read_yaml(path: Path) -> dict:
+    """Read and parse a YAML mapping from ``path``."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -45,6 +53,16 @@ def load_yaml(path: str | Path) -> AgentDefinition:
 
     Sets ``AgentDefinition.source_path`` to the resolved file path so relative
     ``content_dir`` entries can be resolved at ``register_agent`` time.
+
+    Args:
+        path: Path to an agent YAML file.
+
+    Returns:
+        Validated ``AgentDefinition`` with ``source_path`` set.
+
+    Raises:
+        LoaderError: Missing file / I/O / YAML parse issues.
+        DefinitionError: Invalid definition shape.
     """
     p = Path(path)
     if not p.is_file():
@@ -55,7 +73,14 @@ def load_yaml(path: str | Path) -> AgentDefinition:
 
 
 def load_paths(paths: Iterable[str | Path]) -> list[AgentDefinition]:
-    """Load multiple YAML paths."""
+    """Load multiple YAML paths.
+
+    Args:
+        paths: Iterable of file paths.
+
+    Returns:
+        List of definitions in input order.
+    """
     defs: list[AgentDefinition] = []
     for path in paths:
         defs.append(load_yaml(path))
@@ -72,6 +97,17 @@ def load_directory(
 
     By default only the top level is scanned. Pass ``recursive=True`` to include
     nested folders (e.g. ``agents/<name>/<name>.agent.yaml``).
+
+    Args:
+        directory: Directory to scan.
+        pattern: Glob pattern (default ``*.agent.yaml``).
+        recursive: Use ``rglob`` when True.
+
+    Returns:
+        Definitions sorted by path; duplicates from odd globs are de-duped.
+
+    Raises:
+        LoaderError: Not a directory, or no matching files.
     """
     d = Path(directory)
     if not d.is_dir():

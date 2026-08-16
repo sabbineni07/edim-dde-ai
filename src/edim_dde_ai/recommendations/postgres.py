@@ -1,4 +1,22 @@
-"""PostgreSQL recommendation history store."""
+"""PostgreSQL recommendation history store.
+
+Business purpose
+----------------
+Durable recommendation history in PostgreSQL for local Compose and hosts that
+already use Postgres for StateStore.
+
+How it fits the platform
+------------------------
+Table ``edim_recommendations`` stores indexed filter columns plus a JSONB
+``payload`` of the full ``RecommendationRecord``. Shares DSN resolution with
+StateStore (``EDIM_DATABASE_URL`` / ``DATABASE_URL``).
+
+Install: ``pip install 'edim-dde-ai[postgres]'``
+
+Public API
+----------
+* ``PostgresRecommendationStore``
+"""
 
 from __future__ import annotations
 
@@ -39,6 +57,9 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
     Install: ``pip install 'edim-dde-ai[postgres]'``
 
     Env: ``EDIM_DATABASE_URL`` or ``DATABASE_URL``
+
+    Args:
+        dsn: Optional connection string; otherwise resolved from env.
     """
 
     def __init__(self, dsn: str | None = None) -> None:
@@ -58,22 +79,34 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
 
     @property
     def name(self) -> str:
+        """Backend id ``postgres``."""
         return "postgres"
 
     def _connect(self):
+        """Open a dict-row psycopg connection to the configured DSN."""
         return self._psycopg.connect(self._dsn, row_factory=self._dict_row)
 
     def ensure_schema(self) -> None:
+        """Create ``edim_recommendations`` table and indexes if missing."""
         with self._connect() as conn:
             conn.execute(_SCHEMA_SQL)
             conn.commit()
 
     def ping(self) -> bool:
+        """Return True when ``SELECT 1`` succeeds."""
         with self._connect() as conn:
             conn.execute("SELECT 1")
         return True
 
     def save(self, record: RecommendationRecord) -> RecommendationRecord:
+        """Upsert filter columns + full JSONB payload.
+
+        Args:
+            record: Full recommendation document.
+
+        Returns:
+            The same ``record``.
+        """
         payload = json.dumps(record.to_dict())
         with self._connect() as conn:
             conn.execute(
@@ -104,6 +137,7 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
         return record
 
     def get(self, recommendation_id: str) -> RecommendationRecord | None:
+        """Fetch one recommendation by id, or ``None``."""
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT payload FROM edim_recommendations WHERE recommendation_id = %s",
@@ -122,6 +156,15 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
         agent_id: str | None = None,
         limit: int = 50,
     ) -> list[RecommendationRecord]:
+        """SQL-filtered list, newest ``created_at`` first.
+
+        Args:
+            job_id / cluster_id / status / agent_id: Exact filters when set.
+            limit: Max rows.
+
+        Returns:
+            Matching records reconstituted from JSONB payloads.
+        """
         clauses: list[str] = []
         params: list[Any] = []
         if job_id is not None:

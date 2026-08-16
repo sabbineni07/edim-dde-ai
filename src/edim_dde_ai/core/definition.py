@@ -1,8 +1,13 @@
 """Parse and validate agent definitions from dicts.
 
-Turns a YAML/JSON agent mapping into a frozen ``AgentDefinition`` used by the
-graph builder. Validation is structural only: node/router *ids* must exist in
-Python registries at build time (no dynamic imports from YAML).
+Business purpose:
+  Turn a YAML/JSON agent mapping into a frozen ``AgentDefinition`` used by the
+  graph builder. Validation is structural only: node/router *ids* must exist in
+  Python registries at build time (no dynamic imports from YAML).
+
+Public API:
+  - ``EntrySpec`` / ``NodeSpec`` / ``ConditionalEdgeSpec`` / ``AgentDefinition``
+  - ``parse_agent_definition(data)``
 
 Conditional edges use the key ``source`` (not ``from``). Each item may include
 optional ``config`` (a mapping) passed to the router factory.
@@ -44,12 +49,27 @@ _RESERVED = frozenset({"START", "END"})
 
 @dataclass(frozen=True)
 class EntrySpec:
+    """Declared entry method metadata (informational for hosts).
+
+    Attributes:
+        method: Intended call style (default ``invoke``).
+        sync: Whether sync invoke is expected (default True).
+    """
+
     method: str = "invoke"
     sync: bool = True
 
 
 @dataclass(frozen=True)
 class NodeSpec:
+    """One graph node from YAML.
+
+    Attributes:
+        id: Unique node id within the agent.
+        type: Allowlisted factory id (``register_node`` / builtins).
+        config: Remaining YAML keys passed to the factory.
+    """
+
     id: str
     type: str
     config: dict[str, Any] = field(default_factory=dict)
@@ -71,6 +91,21 @@ class ConditionalEdgeSpec:
 
 @dataclass(frozen=True)
 class AgentDefinition:
+    """Validated, immutable agent graph definition.
+
+    Attributes:
+        agent_id: Registry key / invoke id.
+        display_name: Human label (defaults to ``agent_id``).
+        version: Integer definition version.
+        entry: EntrySpec metadata.
+        graph_entry: Resolved start node id.
+        nodes: Ordered node specs.
+        edges: Unconditional ``(source, target)`` pairs (may include START).
+        conditional_edges: Router-backed branches.
+        raw: Original mapping (prompts/skills/content_dir live here).
+        source_path: Absolute YAML path when loaded from disk (for content_dir).
+    """
+
     agent_id: str
     display_name: str
     version: int
@@ -83,6 +118,7 @@ class AgentDefinition:
     source_path: str | None = None
 
     def node_ids(self) -> set[str]:
+        """Return the set of defined node ids."""
         return {n.id for n in self.nodes}
 
 
@@ -94,7 +130,17 @@ def _require(data: dict[str, Any], key: str, path: str = "") -> Any:
 
 
 def parse_agent_definition(data: dict[str, Any]) -> AgentDefinition:
-    """Parse and validate an agent definition dict into AgentDefinition."""
+    """Parse and validate an agent definition dict into AgentDefinition.
+
+    Args:
+        data: Raw agent mapping (YAML/JSON root).
+
+    Returns:
+        Frozen ``AgentDefinition`` (``source_path`` unset; loaders set it).
+
+    Raises:
+        DefinitionError: Structural or extended-block validation failures.
+    """
     if not isinstance(data, dict):
         raise DefinitionError("Agent definition must be a mapping")
 

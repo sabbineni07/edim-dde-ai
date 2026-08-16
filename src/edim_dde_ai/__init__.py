@@ -1,4 +1,16 @@
-"""EDIM DDE AI — YAML-driven LangGraph agent framework."""
+"""EDIM DDE AI — YAML-driven LangGraph agent framework.
+
+Business purpose:
+  Process-wide entry package: register agents from YAML/dicts, create runnable
+  ``MetadataAgent`` instances, and configure content, observability, store,
+  retrieval, evaluation, and web-search providers.
+
+Public API:
+  Re-exports registration, agent factory, content, observability, store,
+  recommendations, retrieval, evaluation, and web-search helpers. See ``__all__``.
+
+Importing this package also registers builtin node types via ``edim_dde_ai.nodes``.
+"""
 
 from edim_dde_ai.api.entrypoints import (
     register_from_dict,

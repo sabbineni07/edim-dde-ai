@@ -1,7 +1,11 @@
-"""Generic Registry -- Singleton catalog pattern for keyed factories/callables.
+"""Generic Registry — Singleton catalog pattern for keyed factories/callables.
 
-Shared implementation for nodes, chains, routers, and agents: register by
-string key, optional seed restore on clear, optional overwrite policy.
+Business purpose:
+  Shared implementation for nodes, chains, routers, and agents: register by
+  string key, optional seed restore on clear, optional overwrite policy.
+
+Public API:
+  - ``Registry`` — generic keyed catalog
 
 Supports decorator or direct registration::
 
@@ -10,7 +14,6 @@ Supports decorator or direct registration::
 
     reg.register("bar", value)
 """
-
 
 from __future__ import annotations
 
@@ -23,12 +26,11 @@ T = TypeVar("T")
 class Registry(Generic[T]):
     """In-process keyed catalog with optional seed restore on clear.
 
-    Supports decorator or direct registration::
-
-        @reg.register("foo")
-        def factory(...): ...
-
-        reg.register("bar", value)
+    Args:
+        kind: Human label used in error messages (e.g. ``"node type"``).
+        error_cls: Exception type for unknown/duplicate keys.
+        allow_overwrite: Default overwrite policy when ``overwrite`` is omitted.
+        seed: Optional builtins restored by ``clear(restore_seed=True)``.
     """
 
     def __init__(
@@ -52,7 +54,20 @@ class Registry(Generic[T]):
         *,
         overwrite: bool | None = None,
     ) -> Callable[[T], T] | T:
-        """Register ``value`` under ``key``, or return a decorator when ``value`` is omitted."""
+        """Register ``value`` under ``key``, or return a decorator when ``value`` is omitted.
+
+        Args:
+            key: Non-empty registry key.
+            value: Item to store, or ``None`` to return a decorator.
+            overwrite: Override default overwrite policy for this call.
+
+        Returns:
+            ``value`` when provided directly, else a decorator that registers
+            the decorated object and returns it.
+
+        Raises:
+            error_cls: Empty key or duplicate when overwrite is disallowed.
+        """
         if not isinstance(key, str) or not key.strip():
             raise self._error_cls(f"{self._kind} key must be a non-empty string")
 
@@ -69,20 +84,32 @@ class Registry(Generic[T]):
         return decorator
 
     def get(self, key: str) -> T:
+        """Return the item for ``key``.
+
+        Raises:
+            error_cls: If ``key`` is unknown.
+        """
         try:
             return self._items[key]
         except KeyError as exc:
             raise self._error_cls(f"Unknown {self._kind} '{key}'") from exc
 
     def list_keys(self) -> list[str]:
+        """Return sorted keys."""
         return sorted(self._items.keys())
 
     def clear(self, *, restore_seed: bool = True) -> None:
+        """Clear entries; optionally restore the seed map.
+
+        Args:
+            restore_seed: When True, re-seed builtins after clear.
+        """
         self._items.clear()
         if restore_seed:
             self._items.update(self._seed)
 
     def items(self) -> ItemsView[str, T]:
+        """Return a live view of ``(key, value)`` pairs."""
         return self._items.items()
 
     def __contains__(self, key: object) -> bool:

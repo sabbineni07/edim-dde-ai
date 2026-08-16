@@ -1,7 +1,15 @@
 """Agent, node, chain, and router registries (Strategy catalogs).
 
-Public registration APIs stay stable. Routers are factories
-(``config -> state -> label``), same pattern as node types.
+Business purpose:
+  Central re-exports for registering and looking up the Strategy catalogs that
+  YAML graphs reference by string id. Routers are factories
+  (``config -> state -> label``), same pattern as node types.
+
+Public API:
+  - Nodes: ``register_node``, ``get_node_factory``, ``list_node_types``
+  - Agents: ``register_agent``, ``create_agent``, ``list_agents``, ``get_agent_definition``
+  - Chains: ``register_chain_invoker``, ``get_chain_invoker``, ``list_chain_invokers``
+  - Routers: ``register_router``, ``get_router`` / ``get_router_factory``, ``list_routers``
 
 Prefer ``get_router_factory``; ``get_router`` is an alias for compatibility.
 """

@@ -1,7 +1,16 @@
 """argparse CLI for edim-dde-ai.
 
+Business purpose:
+  Operator-facing commands to validate, register, list, and invoke YAML agents
+  without writing Python. Loads remembered paths from ``cli.store`` before
+  list/run.
+
+Public API:
+  - ``build_parser()`` — construct the argparse tree
+  - ``main(argv=None)`` — parse and dispatch; return exit code
+
 Commands: ``version``, ``list``, ``register``, ``register-dir``, ``run``,
-``validate``. Loads remembered paths from ``cli.store`` before list/run.
+``validate``.
 
 Example::
 
@@ -155,6 +164,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the top-level argparse parser and subcommands.
+
+    Returns:
+        Configured ``ArgumentParser`` (``command`` required).
+    """
     parser = argparse.ArgumentParser(
         prog="edim-dde-ai",
         description=(
@@ -253,6 +267,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint.
+
+    Args:
+        argv: Optional argv list (defaults to ``sys.argv[1:]``).
+
+    Returns:
+        Process exit code (0 success; 1 general error; 2 not found).
+    """
     import edim_dde_ai.nodes  # noqa: F401
 
     parser = build_parser()

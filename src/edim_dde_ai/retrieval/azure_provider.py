@@ -1,4 +1,25 @@
-"""Azure AI Search retrieval provider (deployed default)."""
+"""Azure AI Search retrieval provider (deployed default).
+
+Business purpose
+----------------
+Production / SDBX hosts typically point ``EDIM_RETRIEVAL=azure_ai_search`` so
+agents query managed indexes instead of local FAISS files. Logical corpora map
+to index names via constructor args, ``CorpusConfig.azure_index``, or
+``EDIM_AZURE_SEARCH_CORPUS_MAP``.
+
+Public API
+----------
+* ``AzureAISearchRetrieval`` — ``RetrievalProvider`` over Azure AI Search
+
+Install: ``pip install 'edim-dde-ai[azure-search]'``
+
+Env
+---
+* ``EDIM_AZURE_SEARCH_ENDPOINT`` — ``https://{service}.search.windows.net``
+* ``EDIM_AZURE_SEARCH_KEY`` — admin or query key (Key Vault in PROD)
+* ``EDIM_AZURE_SEARCH_INDEX`` — default index when corpus has no override
+* ``EDIM_AZURE_SEARCH_CORPUS_MAP`` — optional ``corpus:index,...`` overrides
+"""
 
 from __future__ import annotations
 
@@ -30,6 +51,18 @@ class AzureAISearchRetrieval:
         default_index: str | None = None,
         corpus_indexes: dict[str, str] | None = None,
     ) -> None:
+        """Build a Search client factory from args or environment.
+
+        Args:
+            endpoint: Service URL; defaults to ``EDIM_AZURE_SEARCH_ENDPOINT``.
+            key: API key; defaults to ``EDIM_AZURE_SEARCH_KEY``.
+            default_index: Fallback index name.
+            corpus_indexes: Explicit ``corpus → index`` map (merged with
+                ``EDIM_AZURE_SEARCH_CORPUS_MAP``).
+
+        Raises:
+            RuntimeError: Missing ``azure-search-documents`` or required env.
+        """
         try:
             from azure.core.credentials import AzureKeyCredential
             from azure.search.documents import SearchClient
@@ -68,6 +101,7 @@ class AzureAISearchRetrieval:
 
     @property
     def name(self) -> str:
+        """Backend id for health / logs (``azure_ai_search``)."""
         return "azure_ai_search"
 
     def _index_for(self, corpus: str) -> str:
@@ -81,12 +115,31 @@ class AzureAISearchRetrieval:
         )
 
     def ping(self) -> bool:
+        """Light search against the default index.
+
+        Returns:
+            ``True`` if the service accepts a trivial query.
+
+        Raises:
+            Exception: Propagated from the Azure SDK on transport/auth failure.
+        """
         # Light get-document-count style call via search top=1
         client = self._client(self._default_index or "ping")
         list(client.search(search_text="*", top=1))
         return True
 
     def search(self, request: SearchRequest) -> list[RetrievalHit]:
+        """Run text (keyword/semantic) search; vector mode falls back to text.
+
+        Field mapping prefers ``content`` / ``text`` / ``chunk`` / ``summary``
+        for body and ``id`` / ``doc_id`` for document id.
+
+        Args:
+            request: Query, corpus, and ``top_k``.
+
+        Returns:
+            Normalized ``RetrievalHit`` rows from Azure documents.
+        """
         client = self._client(request.corpus)
         kwargs: dict[str, Any] = {
             "search_text": request.query,
@@ -143,6 +196,15 @@ class AzureAISearchRetrieval:
         metadata: dict | None = None,
         source: str | None = None,
     ) -> None:
+        """Upload one document (``id`` + ``content``/``text`` fields).
+
+        Args:
+            corpus: Logical corpus → index name.
+            doc_id: Document key.
+            text: Body stored as both ``content`` and ``text``.
+            metadata: Merged into the document body.
+            source: Optional ``source`` field.
+        """
         client = self._client(corpus)
         body: dict[str, Any] = {
             "id": doc_id,
@@ -156,6 +218,16 @@ class AzureAISearchRetrieval:
         client.upload_documents(documents=[body])
 
     def delete(self, *, corpus: str, doc_id: str) -> bool:
+        """Delete one document by id.
+
+        Args:
+            corpus: Logical corpus → index name.
+            doc_id: Document key.
+
+        Returns:
+            ``True`` after the delete request is accepted (SDK does not
+            distinguish missing ids here).
+        """
         client = self._client(corpus)
         client.delete_documents(documents=[{"id": doc_id}])
         return True

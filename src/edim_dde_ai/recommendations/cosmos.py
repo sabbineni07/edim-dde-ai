@@ -1,4 +1,25 @@
-"""Azure Cosmos DB recommendation history store."""
+"""Azure Cosmos DB recommendation history store.
+
+Business purpose
+----------------
+Durable recommendation history in Cosmos when the deployment already uses
+Cosmos for StateStore (shared account env).
+
+How it fits the platform
+------------------------
+Partition key is ``/recommendation_id``. Items store the full
+``RecommendationRecord`` dict plus Cosmos ``id`` (= recommendation_id).
+Reads strip system properties before ``from_dict``.
+
+Install: ``pip install 'edim-dde-ai[cosmos]'``
+
+Env: ``EDIM_COSMOS_ENDPOINT``, ``EDIM_COSMOS_KEY``, ``EDIM_COSMOS_DATABASE``,
+optional ``EDIM_COSMOS_RECOMMENDATIONS_CONTAINER`` (default ``recommendations``).
+
+Public API
+----------
+* ``CosmosRecommendationStore``
+"""
 
 from __future__ import annotations
 
@@ -20,6 +41,9 @@ class CosmosRecommendationStore(RecommendationStatusMixin):
 
     Env: ``EDIM_COSMOS_ENDPOINT``, ``EDIM_COSMOS_KEY``, ``EDIM_COSMOS_DATABASE``,
     optional ``EDIM_COSMOS_RECOMMENDATIONS_CONTAINER`` (default ``recommendations``).
+
+    Args:
+        endpoint / key / database: Optional overrides; otherwise resolved from env.
     """
 
     def __init__(
@@ -55,19 +79,30 @@ class CosmosRecommendationStore(RecommendationStatusMixin):
 
     @property
     def name(self) -> str:
+        """Backend id ``cosmos``."""
         return "cosmos"
 
     def ping(self) -> bool:
+        """Return True when the recommendations container is readable."""
         _ = self._container.read()
         return True
 
     def save(self, record: RecommendationRecord) -> RecommendationRecord:
+        """Upsert the full record dict (Cosmos ``id`` = recommendation_id).
+
+        Args:
+            record: Full recommendation document.
+
+        Returns:
+            The same ``record``.
+        """
         body = record.to_dict()
         body["id"] = record.recommendation_id
         self._container.upsert_item(body)
         return record
 
     def get(self, recommendation_id: str) -> RecommendationRecord | None:
+        """Fetch one recommendation by id, or ``None`` if missing."""
         try:
             item = self._container.read_item(
                 item=recommendation_id, partition_key=recommendation_id
@@ -85,6 +120,15 @@ class CosmosRecommendationStore(RecommendationStatusMixin):
         agent_id: str | None = None,
         limit: int = 50,
     ) -> list[RecommendationRecord]:
+        """Cross-partition query, newest ``created_at`` first.
+
+        Args:
+            job_id / cluster_id / status / agent_id: Exact filters when set.
+            limit: Max rows.
+
+        Returns:
+            Matching records (at most ``limit``).
+        """
         clauses = ["1=1"]
         params: list[dict[str, Any]] = []
         if job_id is not None:
@@ -116,6 +160,7 @@ class CosmosRecommendationStore(RecommendationStatusMixin):
 
 
 def _strip_cosmos(item: dict[str, Any]) -> dict[str, Any]:
+    """Drop Cosmos system keys and duplicate ``id`` before from_dict."""
     return {
         k: v
         for k, v in item.items()

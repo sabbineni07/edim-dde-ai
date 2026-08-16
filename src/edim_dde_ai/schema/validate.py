@@ -1,9 +1,15 @@
 """Validate extended agent definition blocks (BL-002).
 
-Structural graph validation remains in ``core.definition``. This module checks
-optional R1 contract blocks (metadata, model, security, evaluation, hitl)
-when present, and can optionally load ``schemas/agent.schema.json`` if the
-``jsonschema`` package is installed.
+Business purpose:
+  Structural graph validation remains in ``core.definition``. This module checks
+  optional R1 contract blocks (metadata, model, security, evaluation, hitl, rag)
+  when present, and can optionally load ``schemas/agent.schema.json`` if the
+  ``jsonschema`` package is installed.
+
+Public API:
+  - ``validate_extended_blocks(data)``
+  - ``validate_agent_dict(data, *, use_jsonschema=False)``
+  - ``schema_path()``
 """
 
 from __future__ import annotations
@@ -23,7 +29,14 @@ _SCHEMA_PATH = (
 
 
 def validate_extended_blocks(data: dict[str, Any]) -> None:
-    """Raise DefinitionError if optional contract blocks have invalid shape."""
+    """Raise DefinitionError if optional contract blocks have invalid shape.
+
+    Args:
+        data: Raw agent definition mapping.
+
+    Raises:
+        DefinitionError: Invalid types/enums in optional blocks.
+    """
     if not isinstance(data, dict):
         raise DefinitionError("Agent definition must be a mapping")
 
@@ -93,7 +106,16 @@ def validate_extended_blocks(data: dict[str, Any]) -> None:
 
 
 def validate_agent_dict(data: dict[str, Any], *, use_jsonschema: bool = False) -> None:
-    """Validate extended blocks; optionally run JSON Schema if installed."""
+    """Validate extended blocks; optionally run JSON Schema if installed.
+
+    Args:
+        data: Raw agent definition mapping.
+        use_jsonschema: When True, also validate against ``agent.schema.json``.
+
+    Raises:
+        DefinitionError: Shape/schema failures, or missing ``jsonschema`` package
+            when ``use_jsonschema=True``.
+    """
     validate_extended_blocks(data)
     if not use_jsonschema:
         return
@@ -114,4 +136,9 @@ def validate_agent_dict(data: dict[str, Any], *, use_jsonschema: bool = False) -
 
 
 def schema_path() -> Path:
+    """Return the path to packaged ``schemas/agent.schema.json``.
+
+    Returns:
+        Absolute ``Path`` (may not exist in incomplete installs).
+    """
     return _SCHEMA_PATH

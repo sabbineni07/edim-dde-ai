@@ -1,4 +1,27 @@
-"""Databricks Vector Search retrieval provider (per-corpus override)."""
+"""Databricks Vector Search retrieval provider (per-corpus override).
+
+Business purpose
+----------------
+Some corpora live in Databricks Vector Search indexes rather than Azure AI
+Search or FAISS. This provider queries those indexes at runtime; **ingest**
+(upsert/delete) remains owned by platform Jobs (Delta sync / VS pipelines).
+
+Public API
+----------
+* ``DatabricksVectorRetrieval`` — read-only ``RetrievalProvider`` for VS indexes
+
+Install: ``pip install 'edim-dde-ai[databricks-vector]'``
+(databricks-vectorsearch + databricks-sdk).
+
+Env
+---
+* ``DATABRICKS_HOST`` / ``DATABRICKS_TOKEN`` — workspace auth (SDK defaults)
+* ``EDIM_DBX_VS_ENDPOINT`` — Vector Search endpoint name
+* ``EDIM_DBX_VS_INDEX`` — default index name
+* ``EDIM_DBX_VS_CORPUS_MAP`` — optional ``corpus:index,...`` overrides
+* ``EDIM_DBX_VS_TEXT_COLUMN`` — text column (default ``text``)
+* ``EDIM_DBX_VS_ID_COLUMN`` — id column (default ``id``)
+"""
 
 from __future__ import annotations
 
@@ -34,6 +57,17 @@ class DatabricksVectorRetrieval:
         default_index: str | None = None,
         corpus_indexes: dict[str, str] | None = None,
     ) -> None:
+        """Connect to a Vector Search endpoint.
+
+        Args:
+            endpoint: VS endpoint name; defaults to ``EDIM_DBX_VS_ENDPOINT``.
+            default_index: Fallback index name; defaults to ``EDIM_DBX_VS_INDEX``.
+            corpus_indexes: Explicit ``corpus → index`` map (merged with
+                ``EDIM_DBX_VS_CORPUS_MAP``).
+
+        Raises:
+            RuntimeError: Missing ``databricks-vectorsearch`` or required env.
+        """
         try:
             from databricks.vector_search.client import VectorSearchClient
         except ImportError as exc:
@@ -68,12 +102,18 @@ class DatabricksVectorRetrieval:
 
     @property
     def name(self) -> str:
+        """Backend id for health / logs (``databricks_vector``)."""
         return "databricks_vector"
 
     def _index_name(self, corpus: str) -> str:
         return self._corpus_indexes.get(corpus) or self._default_index
 
     def ping(self) -> bool:
+        """Resolve the default index via the VS client.
+
+        Returns:
+            ``True`` if ``get_index`` succeeds.
+        """
         idx = self._client.get_index(
             endpoint_name=self._endpoint, index_name=self._default_index
         )
@@ -81,6 +121,17 @@ class DatabricksVectorRetrieval:
         return True
 
     def search(self, request: SearchRequest) -> list[RetrievalHit]:
+        """Run ``similarity_search`` and normalize heterogeneous SDK payloads.
+
+        Accepts dict- or list-shaped rows from current and older
+        databricks-vectorsearch clients.
+
+        Args:
+            request: Query, corpus, and ``top_k``.
+
+        Returns:
+            Up to ``top_k`` ``RetrievalHit`` rows.
+        """
         index = self._client.get_index(
             endpoint_name=self._endpoint,
             index_name=self._index_name(request.corpus),
@@ -148,12 +199,22 @@ class DatabricksVectorRetrieval:
         metadata: dict | None = None,
         source: str | None = None,
     ) -> None:
+        """Not supported — ingest is Jobs-owned (Delta / VS index pipeline).
+
+        Raises:
+            NotImplementedError: Always.
+        """
         raise NotImplementedError(
             "Databricks Vector Search upsert is owned by platform Jobs "
             "(Delta sync / VS index pipeline). Use the Jobs path for ingest."
         )
 
     def delete(self, *, corpus: str, doc_id: str) -> bool:
+        """Not supported — delete is Jobs-owned.
+
+        Raises:
+            NotImplementedError: Always.
+        """
         raise NotImplementedError(
             "Databricks Vector Search delete is owned by platform Jobs."
         )

@@ -1,4 +1,24 @@
-"""Post-search de-duplication for retrieval hits (id + content/action)."""
+"""Post-search de-duplication for retrieval hits (id + content/action).
+
+Business purpose
+----------------
+Similarity search can return near-duplicate outcomes (same recommendation id
+across shards, or different jobs with the same recommended action). Agents
+want a short, non-redundant prompt list **without** hiding that a pattern is
+common.
+
+How it fits the platform
+------------------------
+Called after ``search_corpus`` in domain historical-context helpers. Survivors
+carry ``metadata['occurrences']`` and optional ``also_job_ids`` so prompts can
+say "seen N times across jobs".
+
+Public API
+----------
+* ``content_hash`` — stable short hash of normalized body text
+* ``action_signature_from_hit`` — metadata signature or content hash fallback
+* ``dedupe_retrieval_hits`` — collapse by id, then optionally by action
+"""
 
 from __future__ import annotations
 
@@ -12,16 +32,31 @@ _WS = re.compile(r"\s+")
 
 
 def _normalize_text(text: str) -> str:
+    """Collapse whitespace and lowercase for stable hashing."""
     return _WS.sub(" ", (text or "").strip().lower())
 
 
 def content_hash(text: str) -> str:
-    """Stable short hash of normalized body text."""
+    """Stable short hash of normalized body text.
+
+    Args:
+        text: Hit body or free-form action text.
+
+    Returns:
+        First 16 hex chars of SHA-256 over normalized UTF-8 bytes.
+    """
     return hashlib.sha256(_normalize_text(text).encode("utf-8")).hexdigest()[:16]
 
 
 def action_signature_from_hit(hit: RetrievalHit) -> str:
-    """Prefer metadata.action_signature; else hash of body text."""
+    """Prefer metadata.action_signature; else hash of body text.
+
+    Args:
+        hit: One retrieval result.
+
+    Returns:
+        Lowercased action signature string used as the second-pass dedupe key.
+    """
     meta = hit.metadata or {}
     sig = str(meta.get("action_signature") or "").strip()
     if sig:
@@ -42,6 +77,17 @@ def dedupe_retrieval_hits(
     instead of silently hiding that a pattern is common.
 
     Order is preserved among survivors (input should already be score-sorted).
+
+    Args:
+        hits: Score-ordered retrieval results (may contain duplicates).
+        by_action: When ``True`` (default), also collapse by action signature
+            after the per-id pass. When ``False``, only collapse by ``id``.
+
+    Returns:
+        Deduplicated list of ``RetrievalHit`` with occurrence metadata.
+
+    Example:
+        >>> dedupe_retrieval_hits(hits, by_action=True)  # doctest: +SKIP
     """
     by_id: dict[str, RetrievalHit] = {}
     order: list[str] = []

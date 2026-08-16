@@ -1,4 +1,24 @@
-"""Process-wide retrieval provider registry."""
+"""Process-wide retrieval provider registry and environment factory.
+
+Business purpose
+----------------
+One default provider per process (same pattern as StateStore / WebSearch).
+API lifespan typically calls ``configure_retrieval_from_env()``; tests call
+``set_retrieval_provider(MemoryRetrieval())``. Per-corpus overrides from
+``CorpusConfig.provider`` are cached in ``_CORPUS_PROVIDERS``.
+
+Public API
+----------
+* ``set_retrieval_provider`` / ``get_retrieval_provider`` / ``clear_retrieval_provider``
+* ``resolve_retrieval_name`` / ``create_retrieval_provider`` /
+  ``configure_retrieval_from_env``
+* ``provider_for_corpus`` / ``search_corpus``
+
+Env
+---
+* ``EDIM_RETRIEVAL`` — ``none`` | ``memory`` | ``faiss`` | ``azure_ai_search`` |
+  ``databricks_vector`` (aliases accepted; see ``resolve_retrieval_name``)
+"""
 
 from __future__ import annotations
 
@@ -20,6 +40,11 @@ _CORPUS_PROVIDERS: dict[str, RetrievalProvider] = {}
 
 
 def set_retrieval_provider(provider: RetrievalProvider) -> None:
+    """Replace the process-wide default provider (tests / custom host wiring).
+
+    Args:
+        provider: Any object satisfying ``RetrievalProvider``.
+    """
     global _PROVIDER
     _PROVIDER = provider
     logger.info(
@@ -29,17 +54,34 @@ def set_retrieval_provider(provider: RetrievalProvider) -> None:
 
 
 def get_retrieval_provider() -> RetrievalProvider:
+    """Return the current process-wide default provider (never ``None``).
+
+    Returns:
+        The installed ``RetrievalProvider`` (defaults to ``NoOpRetrieval``).
+    """
     return _PROVIDER
 
 
 def clear_retrieval_provider() -> None:
+    """Reset to ``NoOpRetrieval`` and drop per-corpus provider cache."""
     global _PROVIDER
     _PROVIDER = NoOpRetrieval()
     _CORPUS_PROVIDERS.clear()
 
 
 def resolve_retrieval_name(raw: str | None = None) -> str:
-    """Normalize ``EDIM_RETRIEVAL`` → none|memory|faiss|azure_ai_search|databricks_vector."""
+    """Normalize a backend name (or ``EDIM_RETRIEVAL``) to a canonical id.
+
+    Args:
+        raw: Explicit name, or ``None`` to read ``EDIM_RETRIEVAL``.
+
+    Returns:
+        One of ``none`` | ``memory`` | ``faiss`` | ``azure_ai_search`` |
+        ``databricks_vector``.
+
+    Raises:
+        ValueError: Unknown backend alias.
+    """
     if raw is None:
         value = os.environ.get("EDIM_RETRIEVAL", "").strip().lower()
     else:
@@ -61,6 +103,20 @@ def resolve_retrieval_name(raw: str | None = None) -> str:
 
 
 def create_retrieval_provider(name: str | None = None, **kwargs: Any) -> RetrievalProvider:
+    """Factory for built-in backends (does not install into the process registry).
+
+    Args:
+        name: Backend name or alias; ``None`` uses ``EDIM_RETRIEVAL``.
+        **kwargs: Forwarded to the concrete constructor (e.g. ``index_dir``,
+            ``corpus_indexes``).
+
+    Returns:
+        A new ``RetrievalProvider`` instance.
+
+    Raises:
+        ValueError: Unknown resolved backend name.
+        RuntimeError: Missing optional deps or required env (from constructors).
+    """
     resolved = resolve_retrieval_name(name)
     if resolved == "none":
         return NoOpRetrieval()
@@ -82,14 +138,32 @@ def create_retrieval_provider(name: str | None = None, **kwargs: Any) -> Retriev
 
 
 def configure_retrieval_from_env(**kwargs: Any) -> RetrievalProvider:
-    """Create provider from ``EDIM_RETRIEVAL`` and install it."""
+    """Create provider from ``EDIM_RETRIEVAL`` and install it as the process default.
+
+    Args:
+        **kwargs: Forwarded to ``create_retrieval_provider``.
+
+    Returns:
+        The provider that was installed (also via ``get_retrieval_provider``).
+    """
     provider = create_retrieval_provider(None, **kwargs)
     set_retrieval_provider(provider)
     return provider
 
 
 def provider_for_corpus(corpus: str) -> RetrievalProvider:
-    """Resolve provider for a corpus (optional per-corpus override)."""
+    """Resolve the provider for a logical corpus (optional per-corpus override).
+
+    When ``CorpusConfig.provider`` is set, builds (and caches) a dedicated
+    provider with index path / Azure / Databricks overrides from the corpus
+    config. Otherwise returns the process-wide default.
+
+    Args:
+        corpus: Logical corpus name registered via ``register_corpus`` / YAML.
+
+    Returns:
+        A ``RetrievalProvider`` suitable for searching that corpus.
+    """
     cfg = get_corpus(corpus)
     if cfg and cfg.provider:
         if corpus in _CORPUS_PROVIDERS:
@@ -124,6 +198,22 @@ def search_corpus(
     When ``dedupe`` is true (default), drops duplicate ``id`` then duplicate
     action signatures / content hashes so prompts do not repeat the same
     guidance or past action.
+
+    Args:
+        query: Search text.
+        corpus: Logical corpus name.
+        top_k: Maximum hits to return after optional de-dupe.
+        search_mode: ``vector`` | ``keyword`` | ``hybrid``.
+        filters: Optional provider-specific filters.
+        dedupe: When true, over-fetch then run ``dedupe_retrieval_hits``.
+
+    Returns:
+        Up to ``top_k`` ranked ``RetrievalHit`` rows.
+
+    Example::
+
+        hits = search_corpus("OOM executor", corpus="spark-runbooks", top_k=5)
+        ctx = format_hits_as_context(hits)
     """
     provider = provider_for_corpus(corpus)
     # Over-fetch slightly so de-dupe can still fill top_k

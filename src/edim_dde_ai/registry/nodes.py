@@ -1,9 +1,14 @@
 """Allowlisted node type registry (Strategy catalog via Registry).
 
-YAML ``graph.nodes[].type`` must match a registered id. Python registers
-factories of shape ``(config) -> (state) -> partial_updates``.
+Business purpose:
+  YAML ``graph.nodes[].type`` must match a registered id. Python registers
+  factories of shape ``(config) -> (state) -> partial_updates``. Builtins are
+  seeded from ``nodes.builtin.BUILTIN_NODE_FACTORIES``.
 
-Builtins are seeded from ``nodes.builtin.BUILTIN_NODE_FACTORIES``.
+Public API:
+  - ``NodeFactory`` — type alias
+  - ``register_node`` / ``get_node_factory`` / ``list_node_types`` /
+    ``clear_node_registry``
 
 Example::
 
@@ -16,7 +21,6 @@ Example::
             return {key: state.get(key, "")}
         return _node
 """
-
 
 from __future__ import annotations
 
@@ -41,11 +45,29 @@ def register_node(type_id: str, factory: NodeFactory | None = None):
     """Register a node type by allowlisted id.
 
     Can be used as ``@register_node("my_type")`` or ``register_node("my_type", factory)``.
+
+    Args:
+        type_id: YAML ``type`` string.
+        factory: Optional factory; omit for decorator form.
+
+    Returns:
+        Registered factory, or a decorator.
     """
     return _REGISTRY.register(type_id, factory)
 
 
 def get_node_factory(type_id: str) -> NodeFactory:
+    """Return the factory for ``type_id``.
+
+    Args:
+        type_id: Registered node type id.
+
+    Returns:
+        ``NodeFactory``.
+
+    Raises:
+        NodeRegistryError: If unknown.
+    """
     try:
         return _REGISTRY.get(type_id)
     except NodeRegistryError as exc:
@@ -56,9 +78,14 @@ def get_node_factory(type_id: str) -> NodeFactory:
 
 
 def list_node_types() -> list[str]:
+    """Return sorted registered node type ids."""
     return _REGISTRY.list_keys()
 
 
 def clear_node_registry(*, keep_builtins: bool = False) -> None:
-    """Clear registered nodes. Used in tests."""
+    """Clear registered nodes. Used in tests.
+
+    Args:
+        keep_builtins: When True, restore ``BUILTIN_NODE_FACTORIES`` after clear.
+    """
     _REGISTRY.clear(restore_seed=keep_builtins)

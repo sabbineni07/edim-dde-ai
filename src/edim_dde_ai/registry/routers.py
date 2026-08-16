@@ -1,10 +1,17 @@
 """Conditional-edge router registry (Strategy catalog).
 
-Routers decide which branch to take after a node (LangGraph conditional edges).
-YAML references a router by allowlisted name; Python registers factories.
+Business purpose:
+  Routers decide which branch to take after a node (LangGraph conditional edges).
+  YAML references a router by allowlisted name; Python registers factories of
+  shape ``(config) -> (state) -> branch_label``.
 
-Each factory is ``(config) -> (state) -> branch_label``, same shape as node
-factories: resolve config at graph-build time, return a flat-state router.
+Public API:
+  - Builtin factories: ``field_truthy_factory``, ``field_equals_factory``,
+    ``field_in_factory``, ``field_compare_factory``, ``choice_factory``
+  - ``BUILTIN_ROUTER_FACTORIES`` / ``BUILTIN_ROUTERS`` (alias)
+  - ``register_router`` / ``get_router_factory`` / ``get_router`` (alias) /
+    ``list_routers`` / ``clear_routers``
+  - ``RouterFn`` / ``RouterFactory`` type aliases
 
 Builtins:
 
@@ -38,7 +45,6 @@ Or sugar (see ``core.routes_sugar``)::
         then: explain
         else: END
 """
-
 from __future__ import annotations
 
 from typing import Any, Callable
@@ -186,12 +192,29 @@ def register_router(name: str, factory: RouterFactory | None = None):
 
     Can be used as ``@register_router("my_router")`` or
     ``register_router("my_router", factory)``.
+
+    Args:
+        name: YAML ``router`` string.
+        factory: Optional factory; omit for decorator form.
+
+    Returns:
+        Registered factory, or a decorator.
     """
     return _REGISTRY.register(name, factory)
 
 
 def get_router_factory(name: str) -> RouterFactory:
-    """Return the router factory for ``name`` (config -> RouterFn)."""
+    """Return the router factory for ``name`` (config -> RouterFn).
+
+    Args:
+        name: Registered router id.
+
+    Returns:
+        ``RouterFactory``.
+
+    Raises:
+        RouterRegistryError: If unknown.
+    """
     try:
         return _REGISTRY.get(name)
     except RouterRegistryError as exc:
@@ -205,8 +228,10 @@ get_router = get_router_factory
 
 
 def list_routers() -> list[str]:
+    """Return sorted registered router names."""
     return _REGISTRY.list_keys()
 
 
 def clear_routers(*, keep_builtins: bool = True) -> None:
+    """Clear routers; optionally restore builtins (default True)."""
     _REGISTRY.clear(restore_seed=keep_builtins)

@@ -1,10 +1,15 @@
 """Light Strategy typing protocols for registry callables.
 
-These Protocols document the shapes used by node, chain, and router registries.
-Concrete modules currently use ``Callable`` aliases at runtime; this module is
-**not imported by the runtime today**. Kept for a later stricter-typing pass
-(see ``docs/ROADMAP.md`` → Backlog / hygiene). At that time: wire into
-``register_*`` signatures or remove if still redundant.
+Business purpose:
+  Document the shapes used by node, chain, and router registries. Concrete
+  modules currently use ``Callable`` aliases at runtime; this module is
+  **not imported by the runtime today**. Kept for a later stricter-typing pass
+  (see ``docs/ROADMAP.md`` → Backlog / hygiene).
+
+Public API:
+  - ``NodeCallable`` / ``NodeFactory``
+  - ``ChainInvoker``
+  - ``RouterFn`` / ``RouterFactory``
 
 Keep protocols in sync when signatures change (especially router factories).
 
@@ -48,6 +53,6 @@ class RouterFn(Protocol):
 
 
 class RouterFactory(Protocol):
-    """``(config) -> RouterFn`` -- same factory shape as node types."""
+    """``(config) -> RouterFn`` — same factory shape as node types."""
 
     def __call__(self, config: dict[str, Any]) -> RouterFn: ...

@@ -1,8 +1,13 @@
 """Desugar ``graph.routes`` YAML sugar into ``conditional_edges``.
 
-``routes`` is optional convenience syntax. It expands into standard
-``conditional_edges`` (router + mapping) before validation. Explicit
-``conditional_edges`` are kept and appended after desugared routes.
+Business purpose:
+  Author-friendly ``routes`` syntax expands into standard ``conditional_edges``
+  (router + mapping) before validation. Explicit ``conditional_edges`` are kept
+  and appended after desugared routes.
+
+Public API:
+  - ``desugar_route_item(item, index)``
+  - ``apply_routes_sugar(graph)``
 
 Supported forms::
 
@@ -187,7 +192,18 @@ def _desugar_switch(item: dict[str, Any], index: int) -> dict[str, Any]:
 
 
 def desugar_route_item(item: dict[str, Any], index: int) -> dict[str, Any]:
-    """Convert one ``routes[]`` item into a ``conditional_edges`` mapping."""
+    """Convert one ``routes[]`` item into a ``conditional_edges`` mapping.
+
+    Args:
+        item: One route object (``when`` branch or ``switch``).
+        index: Index for error messages.
+
+    Returns:
+        A conditional-edge dict with ``source``, ``router``, ``config``, ``mapping``.
+
+    Raises:
+        DefinitionError: Invalid shape or conflicting ``when``/``switch``.
+    """
     if "switch" in item:
         if "when" in item:
             raise DefinitionError(
@@ -205,6 +221,16 @@ def apply_routes_sugar(graph: dict[str, Any]) -> dict[str, Any]:
     """Return a graph dict with ``routes`` expanded into ``conditional_edges``.
 
     Does not mutate the input. Removes ``routes`` from the result.
+    Desugared routes are prepended before any existing ``conditional_edges``.
+
+    Args:
+        graph: Graph mapping that may contain ``routes``.
+
+    Returns:
+        New graph dict (same object if ``routes`` absent).
+
+    Raises:
+        DefinitionError: Invalid ``routes`` / ``conditional_edges`` shapes.
     """
     if "routes" not in graph:
         return graph

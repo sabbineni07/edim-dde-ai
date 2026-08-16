@@ -1,4 +1,12 @@
-"""Directory-backed prompt and skill providers (markdown files)."""
+"""Directory-backed prompt and skill providers (markdown files).
+
+Business purpose:
+  Load agent prompts/skills from a content root (typically YAML ``content_dir``)
+  without embedding large text in the definition file.
+
+Public API:
+  - ``DirectoryContentProvider`` — ``get_prompt`` / ``list_skills``
+"""
 
 from __future__ import annotations
 
@@ -8,6 +16,7 @@ from edim_dde_ai.content.protocols import Skill
 
 
 def _parse_skill_markdown(key: str, text: str) -> Skill:
+    """Parse ``skills/{key}.md``: optional ``# Title`` first line, rest is body."""
     lines = text.splitlines()
     title = key
     body_start = 0
@@ -29,6 +38,10 @@ class DirectoryContentProvider:
         skills/{key}.md             # optional first line ``# Title``
 
     If ``agent_id`` is set, ``get_prompt`` / ``list_skills`` only serve that id.
+
+    Args:
+        root: Content directory path.
+        agent_id: Optional scope; when set, other agent_ids return empty/None.
     """
 
     def __init__(self, root: str | Path, agent_id: str | None = None) -> None:
@@ -42,6 +55,7 @@ class DirectoryContentProvider:
         return self.root / "skills"
 
     def get_prompt(self, agent_id: str, chain: str, role: str) -> str | None:
+        """Read ``prompts/{chain}.{role}.md`` or return ``None`` if missing/scoped out."""
         if self.agent_id is not None and agent_id != self.agent_id:
             return None
         path = self._prompts_dir() / f"{chain}.{role}.md"
@@ -50,6 +64,7 @@ class DirectoryContentProvider:
         return path.read_text(encoding="utf-8")
 
     def list_skills(self, agent_id: str, *, chain: str | None = None) -> list[Skill]:
+        """List ``skills/*.md`` (``chain`` reserved; currently unused)."""
         del chain
         if self.agent_id is not None and agent_id != self.agent_id:
             return []

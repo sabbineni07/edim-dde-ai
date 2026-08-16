@@ -1,4 +1,17 @@
-"""Prompt / skill / LLM content providers."""
+"""Prompt / skill / LLM content providers.
+
+Business purpose:
+  Supply system/human prompts, domain skills, and an optional LLMProvider used
+  by ``llm_chain`` when no custom chain invoker is registered.
+
+Public API:
+  - Protocols/models: ``Skill``, ``PromptProvider``, ``SkillProvider``, ``LLMProvider``
+  - Stores: ``InlineContentStore``, ``DirectoryContentProvider``, ``ContentHub``
+  - Composites: ``CompositePromptProvider``, ``CompositeSkillProvider``
+  - Messages: ``build_chat_messages``, ``substitute_vars``
+  - Process setters/getters: ``set_*`` / ``get_*`` / ``clear_*`` / ``register_skill`` /
+    ``get_content_hub`` / ``clear_content_providers``
+"""
 
 from edim_dde_ai.content.directory import DirectoryContentProvider
 from edim_dde_ai.content.inline import InlineContentStore

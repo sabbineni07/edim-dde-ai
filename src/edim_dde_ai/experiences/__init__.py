@@ -1,8 +1,36 @@
 """Experience index — derived recommendation outcomes for similarity search.
 
-Platform seam for future agents: register an ``ExperienceTransform`` per
-``agent_id``, keep ``RecommendationStore`` as the system of record, and upsert
-situation/action cards into a ``RetrievalProvider`` corpus.
+Business purpose
+----------------
+Agents persist product history as ``RecommendationRecord`` rows. Separately,
+cross-job learning needs **situation/action cards** in a retrieval corpus so
+later runs can find feature-similar past outcomes (not exact ``job_id`` matches).
+
+This package is that **derived index seam**: domain packs register an
+``ExperienceTransform`` per ``agent_id``; platform code upserts into the active
+``RetrievalProvider`` without hard-coding agent field names.
+
+How it fits the platform
+------------------------
+* ``RecommendationStore`` remains the system of record (lifecycle / history).
+* ``ExperienceIndexingStore`` wraps store writes so save/status transitions
+  also update (or delete) the experience corpus.
+* Graph / agent helpers call ``dedupe_retrieval_hits`` after ``search_corpus``.
+
+Layers
+------
+* ``models`` — ``ExperienceDocument``
+* ``protocols`` — ``ExperienceTransform`` strategy interface
+* ``registry`` — transform map + ``ExperienceIndexingStore`` / wrap helper
+* ``indexing`` — status-gated upsert / delete against RetrievalProvider
+* ``dedupe`` — post-search collapse by id and action signature
+
+Public API
+----------
+* ``ExperienceDocument``, transform registry helpers
+* ``maybe_index_experience``, ``upsert_experience_document``, ``indexable_statuses``
+* ``dedupe_retrieval_hits``, ``content_hash``, ``action_signature_from_hit``
+* ``wrap_recommendation_store``, ``ExperienceIndexingStore``
 """
 
 from edim_dde_ai.experiences.dedupe import (

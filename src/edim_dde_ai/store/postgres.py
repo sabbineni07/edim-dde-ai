@@ -1,4 +1,22 @@
-"""PostgreSQL state store (recommended for local / SDBX / DEV)."""
+"""PostgreSQL state store (recommended for local / SDBX / DEV).
+
+Business purpose
+----------------
+Durable control-plane store for agent catalog, sessions, and audit using
+JSONB payloads. Schema is created on connect via ``ensure_schema``.
+
+Public API
+----------
+* ``PostgresStateStore`` — ``StateStore`` over ``edim_agents`` /
+  ``edim_sessions`` / ``edim_audit``
+
+Install: ``pip install 'edim-dde-ai[postgres]'``
+
+Env
+---
+* ``EDIM_DATABASE_URL`` or ``DATABASE_URL`` —
+  e.g. ``postgresql://edim:edim@localhost:5432/edim``
+"""
 
 from __future__ import annotations
 
@@ -43,6 +61,14 @@ class PostgresStateStore:
     """
 
     def __init__(self, dsn: str | None = None) -> None:
+        """Connect and ensure tables exist.
+
+        Args:
+            dsn: Postgres URL; defaults to ``resolve_postgres_dsn()``.
+
+        Raises:
+            RuntimeError: Missing ``psycopg`` or DSN.
+        """
         try:
             import psycopg
             from psycopg.rows import dict_row
@@ -59,22 +85,34 @@ class PostgresStateStore:
 
     @property
     def name(self) -> str:
+        """Backend id for health / logs (``postgres``)."""
         return "postgres"
 
     def _connect(self):
         return self._psycopg.connect(self._dsn, row_factory=self._dict_row)
 
     def ensure_schema(self) -> None:
+        """Create ``edim_agents`` / ``edim_sessions`` / ``edim_audit`` if missing."""
         with self._connect() as conn:
             conn.execute(_SCHEMA_SQL)
             conn.commit()
 
     def ping(self) -> bool:
+        """Run ``SELECT 1``.
+
+        Returns:
+            ``True`` on success.
+        """
         with self._connect() as conn:
             conn.execute("SELECT 1")
         return True
 
     def upsert_agent(self, record: AgentRecord) -> None:
+        """Upsert agent JSONB by ``agent_id``.
+
+        Args:
+            record: Agent catalog row.
+        """
         payload = json.dumps(record.to_dict())
         with self._connect() as conn:
             conn.execute(
@@ -89,6 +127,14 @@ class PostgresStateStore:
             conn.commit()
 
     def get_agent(self, agent_id: str) -> AgentRecord | None:
+        """Fetch one agent payload.
+
+        Args:
+            agent_id: Agent key.
+
+        Returns:
+            ``AgentRecord`` or ``None``.
+        """
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT payload FROM edim_agents WHERE agent_id = %s",
@@ -99,6 +145,11 @@ class PostgresStateStore:
         return AgentRecord.from_dict(_as_dict(row["payload"]))
 
     def list_agents(self) -> list[AgentRecord]:
+        """List all agents ordered by ``agent_id``.
+
+        Returns:
+            Agent rows.
+        """
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT payload FROM edim_agents ORDER BY agent_id"
@@ -106,6 +157,14 @@ class PostgresStateStore:
         return [AgentRecord.from_dict(_as_dict(r["payload"])) for r in rows]
 
     def delete_agent(self, agent_id: str) -> bool:
+        """Delete one agent row.
+
+        Args:
+            agent_id: Agent key.
+
+        Returns:
+            ``True`` if a row was deleted.
+        """
         with self._connect() as conn:
             cur = conn.execute(
                 "DELETE FROM edim_agents WHERE agent_id = %s", (agent_id,)
@@ -114,6 +173,11 @@ class PostgresStateStore:
             return cur.rowcount > 0
 
     def upsert_session(self, record: SessionRecord) -> None:
+        """Upsert session JSONB by ``session_id``.
+
+        Args:
+            record: Session document.
+        """
         payload = json.dumps(record.to_dict())
         with self._connect() as conn:
             conn.execute(
@@ -128,6 +192,14 @@ class PostgresStateStore:
             conn.commit()
 
     def get_session(self, session_id: str) -> SessionRecord | None:
+        """Fetch one session payload.
+
+        Args:
+            session_id: Session key.
+
+        Returns:
+            ``SessionRecord`` or ``None``.
+        """
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT payload FROM edim_sessions WHERE session_id = %s",
@@ -138,6 +210,14 @@ class PostgresStateStore:
         return SessionRecord.from_dict(_as_dict(row["payload"]))
 
     def delete_session(self, session_id: str) -> bool:
+        """Delete one session row.
+
+        Args:
+            session_id: Session key.
+
+        Returns:
+            ``True`` if a row was deleted.
+        """
         with self._connect() as conn:
             cur = conn.execute(
                 "DELETE FROM edim_sessions WHERE session_id = %s", (session_id,)
@@ -146,6 +226,11 @@ class PostgresStateStore:
             return cur.rowcount > 0
 
     def append_audit(self, event: AuditEvent) -> None:
+        """Insert an audit row (``ON CONFLICT DO NOTHING`` on ``event_id``).
+
+        Args:
+            event: Audit event.
+        """
         payload = json.dumps(event.to_dict())
         with self._connect() as conn:
             conn.execute(
@@ -161,6 +246,15 @@ class PostgresStateStore:
     def list_audit(
         self, *, agent_id: str | None = None, limit: int = 100
     ) -> list[AuditEvent]:
+        """List recent audit payloads (newest first).
+
+        Args:
+            agent_id: Optional filter.
+            limit: Maximum rows.
+
+        Returns:
+            Up to ``limit`` audit events.
+        """
         with self._connect() as conn:
             if agent_id is None:
                 rows = conn.execute(
@@ -183,6 +277,7 @@ class PostgresStateStore:
 
 
 def _as_dict(payload: Any) -> dict[str, Any]:
+    """Normalize psycopg JSONB (dict / str / mapping) to a plain dict."""
     if isinstance(payload, dict):
         return payload
     if isinstance(payload, str):

@@ -1,4 +1,13 @@
-"""Prompt, skill, and LLM provider protocols."""
+"""Prompt, skill, and LLM provider protocols.
+
+Business purpose:
+  Duck-typed contracts for content backends and the LLM used by default
+  ``llm_chain`` execution. Hosts implement these to plug proprietary stores/models.
+
+Public API:
+  - ``Skill`` — frozen dataclass
+  - ``PromptProvider`` / ``SkillProvider`` / ``LLMProvider`` — Protocols
+"""
 
 from __future__ import annotations
 
@@ -8,7 +17,13 @@ from typing import Any, Protocol, runtime_checkable
 
 @dataclass(frozen=True)
 class Skill:
-    """A named skill/instruction block attachable to prompts."""
+    """A named skill/instruction block attachable to prompts.
+
+    Attributes:
+        key: Stable id (also used for de-dupe in composites).
+        title: Human-readable heading.
+        content: Markdown/plain instruction body.
+    """
 
     key: str
     title: str
@@ -37,5 +52,13 @@ class LLMProvider(Protocol):
         *,
         config: dict[str, Any] | None = None,
     ) -> str:
-        """Invoke an LLM with ``(role, content)`` messages; return assistant text."""
+        """Invoke an LLM with ``(role, content)`` messages; return assistant text.
+
+        Args:
+            messages: Chat turns as ``(role, content)`` pairs.
+            config: Optional node/provider config (model name, temperature, …).
+
+        Returns:
+            Assistant text response.
+        """
         ...

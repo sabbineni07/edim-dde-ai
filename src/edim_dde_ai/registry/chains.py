@@ -1,7 +1,14 @@
 """Pluggable LLM chain invokers keyed by chain name (Strategy catalog).
 
-``llm_chain`` nodes look up an invoker by the ``chain`` config field.
-Invoker signature: ``(state, config) -> Any`` (value written to ``output_key``).
+Business purpose:
+  ``llm_chain`` nodes look up an invoker by the ``chain`` config field. Product
+  code registers custom Python callables when prompts+LLMProvider are not enough
+  (or for fully deterministic chains in tests).
+
+Public API:
+  - ``ChainInvoker`` — type alias ``(state, config) -> Any``
+  - ``register_chain_invoker`` / ``get_chain_invoker`` / ``list_chain_invokers`` /
+    ``clear_chain_invokers``
 
 Nothing is seeded by default; product code registers invokers before build.
 
@@ -13,7 +20,6 @@ Example::
     def invoke_my_prompt(state, config):
         return f"hello {state.get('name', '')}"
 """
-
 
 from __future__ import annotations
 
@@ -35,11 +41,23 @@ def register_chain_invoker(name: str, invoker: ChainInvoker | None = None):
     """Register a chain invoker by name.
 
     Invoker signature: ``(state, config) -> Any`` (value written to output_key).
+
+    Args:
+        name: Chain name matching ``llm_chain`` config ``chain``.
+        invoker: Optional callable; omit for decorator form.
+
+    Returns:
+        Registered invoker, or a decorator.
     """
     return _REGISTRY.register(name, invoker)
 
 
 def get_chain_invoker(name: str) -> ChainInvoker:
+    """Return the invoker for ``name``.
+
+    Raises:
+        ChainInvokerError: If not registered.
+    """
     try:
         return _REGISTRY.get(name)
     except ChainInvokerError as exc:
@@ -50,8 +68,10 @@ def get_chain_invoker(name: str) -> ChainInvoker:
 
 
 def list_chain_invokers() -> list[str]:
+    """Return sorted registered chain invoker names."""
     return _REGISTRY.list_keys()
 
 
 def clear_chain_invokers() -> None:
+    """Remove all chain invokers (tests)."""
     _REGISTRY.clear(restore_seed=False)

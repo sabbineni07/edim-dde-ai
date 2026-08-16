@@ -1,4 +1,15 @@
-"""In-memory retrieval (tests / demos without FAISS files)."""
+"""In-memory retrieval (tests / demos without FAISS files).
+
+Business purpose
+----------------
+Unit tests and local demos need a ``RetrievalProvider`` that requires no
+optional packages or index directories. ``MemoryRetrieval`` keeps documents in
+process memory and ranks by simple token-overlap (TF-style).
+
+Public API
+----------
+* ``MemoryRetrieval`` — ``upsert`` / ``delete`` / ``search`` / ``ping``
+"""
 
 from __future__ import annotations
 
@@ -24,9 +35,15 @@ class MemoryRetrieval:
 
     @property
     def name(self) -> str:
+        """Backend id for health / logs (``memory``)."""
         return "memory"
 
     def ping(self) -> bool:
+        """Always healthy (in-process).
+
+        Returns:
+            ``True``.
+        """
         return True
 
     def upsert(
@@ -38,6 +55,15 @@ class MemoryRetrieval:
         metadata: dict | None = None,
         source: str | None = None,
     ) -> None:
+        """Insert or replace one document in the in-memory bag.
+
+        Args:
+            corpus: Logical corpus name.
+            doc_id: Document id within the corpus.
+            text: Body text used for overlap scoring.
+            metadata: Optional opaque fields returned on hits.
+            source: Optional origin label.
+        """
         self._docs[corpus][doc_id] = RetrievalHit(
             id=doc_id,
             text=text,
@@ -47,6 +73,15 @@ class MemoryRetrieval:
         )
 
     def delete(self, *, corpus: str, doc_id: str) -> bool:
+        """Remove a document if present.
+
+        Args:
+            corpus: Logical corpus name.
+            doc_id: Document id to remove.
+
+        Returns:
+            ``True`` if removed; ``False`` if missing.
+        """
         bag = self._docs.get(corpus) or {}
         if doc_id in bag:
             del bag[doc_id]
@@ -54,6 +89,17 @@ class MemoryRetrieval:
         return False
 
     def search(self, request: SearchRequest) -> list[RetrievalHit]:
+        """Rank documents by query/document token overlap.
+
+        Score is ``overlap / sqrt(|q| * |d|)`` (cosine-like over binary bags).
+
+        Args:
+            request: Query, corpus, and ``top_k``.
+
+        Returns:
+            Up to ``top_k`` hits sorted by score descending (empty if no
+            overlap or empty corpus/query).
+        """
         bag = self._docs.get(request.corpus) or {}
         if not bag or not (request.query or "").strip():
             return []

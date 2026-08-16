@@ -1,4 +1,18 @@
-"""Corpus config resolution (logical corpus → backend override + paths)."""
+"""Logical corpus registry (name → backend override + index pointers).
+
+Business purpose
+----------------
+Agents refer to knowledge by **logical corpus** (e.g. ``spark-runbooks``),
+not by Azure index names or FAISS directories. This module maps those names to
+optional provider overrides and backend-specific paths so ``provider_for_corpus``
+can wire the right client.
+
+Public API
+----------
+* ``CorpusConfig`` — one corpus definition
+* ``register_corpus`` / ``get_corpus`` / ``list_corpora`` / ``clear_corpora``
+* ``load_corpora_yaml`` — load + register from a YAML file
+"""
 
 from __future__ import annotations
 
@@ -12,7 +26,18 @@ import yaml
 
 @dataclass
 class CorpusConfig:
-    """One logical knowledge corpus."""
+    """One logical knowledge corpus.
+
+    Attributes:
+        name: Stable corpus id used in ``SearchRequest.corpus``.
+        provider: Optional override of process ``EDIM_RETRIEVAL``
+            (e.g. ``faiss``, ``azure_ai_search``).
+        description: Human-readable summary for operators.
+        index_path: FAISS directory override (local or Databricks Volume).
+        azure_index: Azure AI Search index name for this corpus.
+        databricks_index: Databricks Vector Search index name.
+        extra: Unknown YAML keys preserved for host extensions.
+    """
 
     name: str
     provider: str | None = None  # override EDIM_RETRIEVAL when set
@@ -30,23 +55,49 @@ _CORPORA: dict[str, CorpusConfig] = {}
 
 
 def clear_corpora() -> None:
+    """Drop all registered corpus configs (tests / re-bootstrap)."""
     _CORPORA.clear()
 
 
 def register_corpus(config: CorpusConfig) -> None:
+    """Register or replace a corpus by ``config.name``.
+
+    Args:
+        config: Corpus definition to store in the process registry.
+    """
     _CORPORA[config.name] = config
 
 
 def get_corpus(name: str) -> CorpusConfig | None:
+    """Look up a registered corpus.
+
+    Args:
+        name: Logical corpus id.
+
+    Returns:
+        ``CorpusConfig`` or ``None`` if unregistered.
+    """
     return _CORPORA.get(name)
 
 
 def list_corpora() -> list[str]:
+    """Return sorted registered corpus names.
+
+    Returns:
+        Alphabetically sorted corpus ids.
+    """
     return sorted(_CORPORA)
 
 
 def load_corpora_yaml(path: str | Path) -> list[CorpusConfig]:
     """Load corpora from YAML and register them.
+
+    Args:
+        path: Filesystem path to a YAML document with a top-level ``corpora`` map.
+
+    Returns:
+        List of ``CorpusConfig`` instances that were registered (empty if
+        missing/invalid ``corpora`` block).
 
     Example::
 
@@ -56,6 +107,9 @@ def load_corpora_yaml(path: str | Path) -> list[CorpusConfig]:
             # provider: faiss   # optional override
             # index_path: /Volumes/.../edim_indexes
             azure_index: spark-runbooks
+
+    ``index_path`` values of the form ``${ENV_KEY}`` are expanded from the
+    environment (missing env → ``None``).
     """
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     block = raw.get("corpora") if isinstance(raw, dict) else None
@@ -85,7 +139,7 @@ def load_corpora_yaml(path: str | Path) -> list[CorpusConfig]:
             ),
             extra=extra,
         )
-        # Env expansion for index_path
+        # Env expansion for index_path (${VAR} → os.environ[VAR])
         if item.index_path and item.index_path.startswith("${") and item.index_path.endswith("}"):
             env_key = item.index_path[2:-1]
             item.index_path = os.environ.get(env_key) or None

@@ -1,4 +1,18 @@
-"""Process-wide content providers: ContentHub + LLM provider setters/getters."""
+"""Process-wide content providers: ContentHub + LLM provider setters/getters.
+
+Business purpose:
+  Default lookup for prompts/skills used by ``build_chat_messages`` / ``llm_chain``.
+  Hosts can override providers; agent YAML can contribute inline content and a
+  relative ``content_dir``.
+
+Public API:
+  - ``CompositePromptProvider`` / ``CompositeSkillProvider``
+  - ``ContentHub`` — default PromptProvider + SkillProvider
+  - ``get_content_hub`` / ``set_prompt_provider`` / ``get_prompt_provider`` /
+    ``clear_prompt_provider`` / ``set_skill_provider`` / ``get_skill_provider`` /
+    ``clear_skill_provider`` / ``set_llm_provider`` / ``get_llm_provider`` /
+    ``clear_llm_provider`` / ``register_skill`` / ``clear_content_providers``
+"""
 
 from __future__ import annotations
 
@@ -11,12 +25,17 @@ from edim_dde_ai.errors import ContentError, LoaderError
 
 
 class CompositePromptProvider:
-    """Try each provider until one returns non-None."""
+    """Try each provider until one returns non-None.
+
+    Args:
+        providers: Ordered prompt providers (first hit wins).
+    """
 
     def __init__(self, providers: list[PromptProvider]) -> None:
         self.providers = list(providers)
 
     def get_prompt(self, agent_id: str, chain: str, role: str) -> str | None:
+        """Return the first non-None prompt from child providers."""
         for p in self.providers:
             text = p.get_prompt(agent_id, chain, role)
             if text is not None:
@@ -25,12 +44,17 @@ class CompositePromptProvider:
 
 
 class CompositeSkillProvider:
-    """Concatenate skills from each provider (later providers append)."""
+    """Concatenate skills from each provider (later providers append; keys unique).
+
+    Args:
+        providers: Ordered skill providers; first occurrence of a key wins.
+    """
 
     def __init__(self, providers: list[SkillProvider]) -> None:
         self.providers = list(providers)
 
     def list_skills(self, agent_id: str, *, chain: str | None = None) -> list[Skill]:
+        """Merge skills across providers without duplicate keys."""
         out: list[Skill] = []
         seen: set[str] = set()
         for p in self.providers:
@@ -50,10 +74,8 @@ class ContentHub:
       2. per-agent directory (``content_dir``)
       3. inline store (YAML ``prompts`` / ``register_skill``)
 
-    Skills: override skills (if set) replace directory+inline for that agent when
-    override returns a non-empty list; otherwise merge directory then inline.
-    Simpler: override checked first; if override is set, use only override.
-    Directory then inline for defaults.
+    Skills: if ``override_skill`` is set, it replaces directory+inline entirely;
+    otherwise merge directory then inline (first key wins).
     """
 
     def __init__(self) -> None:
@@ -63,15 +85,18 @@ class ContentHub:
         self.override_skill: SkillProvider | None = None
 
     def clear(self) -> None:
+        """Reset inline store, directories, and overrides."""
         self.inline.clear()
         self.directories.clear()
         self.override_prompt = None
         self.override_skill = None
 
     def set_directory(self, agent_id: str, root: str | Path) -> None:
+        """Bind a content root directory for ``agent_id``."""
         self.directories[agent_id] = Path(root)
 
     def get_prompt(self, agent_id: str, chain: str, role: str) -> str | None:
+        """Resolve prompt via override → directory → inline."""
         if self.override_prompt is not None:
             text = self.override_prompt.get_prompt(agent_id, chain, role)
             if text is not None:
@@ -86,6 +111,7 @@ class ContentHub:
         return self.inline.get_prompt(agent_id, chain, role)
 
     def list_skills(self, agent_id: str, *, chain: str | None = None) -> list[Skill]:
+        """Resolve skills via override, else directory then inline."""
         if self.override_skill is not None:
             return self.override_skill.list_skills(agent_id, chain=chain)
         skills: list[Skill] = []
@@ -105,7 +131,16 @@ class ContentHub:
         return skills
 
     def load_from_definition(self, definition: AgentDefinition) -> None:
-        """Merge inline prompts/skills and optional ``content_dir`` from definition."""
+        """Merge inline prompts/skills and optional ``content_dir`` from definition.
+
+        Args:
+            definition: Agent definition (needs ``source_path`` when using
+                relative ``content_dir``).
+
+        Raises:
+            ContentError: Invalid ``content_dir`` / missing ``source_path``.
+            LoaderError: ``content_dir`` path is not a directory.
+        """
         raw = definition.raw or {}
         if raw.get("prompts") is not None or raw.get("skills") is not None:
             self.inline.load_from_definition(definition)
@@ -136,6 +171,7 @@ _LLM: LLMProvider | None = None
 
 
 def get_content_hub() -> ContentHub:
+    """Return the process-wide ``ContentHub`` singleton."""
     return _HUB
 
 
@@ -145,10 +181,12 @@ def set_prompt_provider(provider: PromptProvider) -> None:
 
 
 def get_prompt_provider() -> PromptProvider:
+    """Return the hub (implements ``PromptProvider``)."""
     return _HUB
 
 
 def clear_prompt_provider() -> None:
+    """Clear the user prompt override (directory/inline remain)."""
     _HUB.override_prompt = None
 
 
@@ -158,23 +196,28 @@ def set_skill_provider(provider: SkillProvider) -> None:
 
 
 def get_skill_provider() -> SkillProvider:
+    """Return the hub (implements ``SkillProvider``)."""
     return _HUB
 
 
 def clear_skill_provider() -> None:
+    """Clear the user skill override."""
     _HUB.override_skill = None
 
 
 def set_llm_provider(provider: LLMProvider) -> None:
+    """Install the process-wide LLM used by default ``llm_chain`` path."""
     global _LLM
     _LLM = provider
 
 
 def get_llm_provider() -> LLMProvider | None:
+    """Return the installed LLM provider, or ``None``."""
     return _LLM
 
 
 def clear_llm_provider() -> None:
+    """Remove the process-wide LLM provider."""
     global _LLM
     _LLM = None
 

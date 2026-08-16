@@ -1,11 +1,17 @@
 """Persist CLI-registered YAML paths across process invocations.
 
-The CLI remembers paths in a JSON store so ``list`` / ``run`` can reload agents
-without re-passing files. Override location with ``EDIM_DDE_AI_STORE``.
+Business purpose:
+  The CLI remembers paths in a JSON store so ``list`` / ``run`` can reload agents
+  without re-passing files. Override location with ``EDIM_DDE_AI_STORE``.
+
+Public API:
+  - ``store_path()``
+  - ``remember_paths(paths)``
+  - ``load_remembered_into_registry(*, overwrite=True)``
+  - ``clear_store()``
 
 Default: ``~/.edim-dde-ai/registered_paths.json``.
 """
-
 
 from __future__ import annotations
 
@@ -22,6 +28,9 @@ def store_path() -> Path:
 
     Override with env ``EDIM_DDE_AI_STORE`` (absolute or relative file path).
     Default: ``~/.edim-dde-ai/registered_paths.json``.
+
+    Returns:
+        Path to the JSON list of remembered YAML paths.
     """
     override = os.environ.get(_ENV_STORE)
     if override:
@@ -30,6 +39,7 @@ def store_path() -> Path:
 
 
 def _load_paths() -> list[str]:
+    """Read remembered paths; return ``[]`` on missing/corrupt store."""
     path = store_path()
     if not path.is_file():
         return []
@@ -43,6 +53,7 @@ def _load_paths() -> list[str]:
 
 
 def _save_paths(paths: list[str]) -> None:
+    """Write de-duplicated paths (order preserved) to the store file."""
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     # de-dupe preserving order
@@ -56,6 +67,11 @@ def _save_paths(paths: list[str]) -> None:
 
 
 def remember_paths(paths: list[str | Path]) -> None:
+    """Append resolved paths to the persistent store.
+
+    Args:
+        paths: YAML paths to remember (resolved to absolute).
+    """
     current = _load_paths()
     for p in paths:
         current.append(str(Path(p).resolve()))
@@ -63,7 +79,14 @@ def remember_paths(paths: list[str | Path]) -> None:
 
 
 def load_remembered_into_registry(*, overwrite: bool = True) -> list[str]:
-    """Re-register all remembered YAML paths into the in-memory registry."""
+    """Re-register all remembered YAML paths into the in-memory registry.
+
+    Args:
+        overwrite: Passed to ``register_from_yaml``.
+
+    Returns:
+        Agent ids successfully registered (skips missing files).
+    """
     from edim_dde_ai.api.entrypoints import register_from_yaml
 
     ids: list[str] = []
@@ -74,6 +97,7 @@ def load_remembered_into_registry(*, overwrite: bool = True) -> list[str]:
 
 
 def clear_store() -> None:
+    """Delete the store file if present (best-effort)."""
     try:
         store_path().unlink(missing_ok=True)
     except (OSError, PermissionError):

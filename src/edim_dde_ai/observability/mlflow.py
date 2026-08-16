@@ -1,4 +1,18 @@
-"""MLflow observability backend (optional extra)."""
+"""MLflow observability backend (optional extra).
+
+Business purpose:
+  Attach EDIM correlation tags via MLflow when the ``mlflow`` package is
+  installed. Used when ``EDIM_OBSERVABILITY=mlflow``.
+
+Public API:
+  - ``MLflowObservability`` — provider (requires ``edim-dde-ai[mlflow]``)
+
+Install: ``pip install 'edim-dde-ai[mlflow]'``
+
+Env (optional):
+  - ``MLFLOW_TRACKING_URI`` — tracking server / Databricks tracking
+  - ``EDIM_MLFLOW_EXPERIMENT`` — experiment name (default ``edim-dde``)
+"""
 
 from __future__ import annotations
 
@@ -14,11 +28,12 @@ logger = logging.getLogger(__name__)
 class MLflowObservability:
     """Attach EDIM correlation tags via MLflow when the ``mlflow`` package is installed.
 
-    Install: ``pip install 'edim-dde-ai[mlflow]'``
+    Args:
+        experiment: MLflow experiment name (env / default ``edim-dde``).
+        autolog: Attempt ``mlflow.langchain.autolog`` when available.
 
-    Env (optional):
-      - ``MLFLOW_TRACKING_URI`` — tracking server / Databricks tracking
-      - ``EDIM_MLFLOW_EXPERIMENT`` — experiment name (default ``edim-dde``)
+    Raises:
+        RuntimeError: If ``mlflow`` is not installed.
     """
 
     def __init__(self, *, experiment: str | None = None, autolog: bool = True) -> None:
@@ -62,6 +77,18 @@ class MLflowObservability:
         *,
         request_id: str | None = None,
     ) -> dict[str, Any]:
+        """Merge base config and set MLflow tags when a run is active.
+
+        If no active run, stash tags under ``config.metadata.mlflow_tags``.
+
+        Args:
+            agent_id: Agent being invoked.
+            kwargs: Original invoke kwargs.
+            request_id: Optional correlation id.
+
+        Returns:
+            Merged kwargs.
+        """
         out = merge_base_config(
             agent_id,
             kwargs,

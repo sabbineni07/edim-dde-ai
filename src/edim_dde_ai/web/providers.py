@@ -1,4 +1,18 @@
-"""Built-in web-search providers."""
+"""Built-in web-search providers (null / memory / host-managed HTTP JSON).
+
+Business purpose
+----------------
+Concrete strategies behind ``WebSearchProvider``. Production hosts typically
+run ``HttpJsonWebSearch`` against an approved corporate search gateway
+(``EDIM_WEB_SEARCH=http_json``). Tests use ``MemoryWebSearch``. Default /
+disabled is ``NullWebSearch`` (empty results, never raises).
+
+Security
+--------
+``HttpJsonWebSearch`` requires ``https://`` endpoints. API keys travel only in
+configured headers. Domain filtering is applied in ``MemoryWebSearch`` and
+usually again in the builtin ``web.search`` node.
+"""
 
 from __future__ import annotations
 
@@ -13,24 +27,36 @@ from edim_dde_ai.web.models import WebSearchRequest, WebSearchResult
 
 
 class NullWebSearch:
-    """Null Object used when online search is not configured."""
+    """Null Object used when online search is not configured.
+
+    Always returns ``[]``. Safe default for local/dev and when
+    ``EDIM_WEB_SEARCH=none``.
+    """
 
     name = "none"
 
     def search(self, request: WebSearchRequest) -> list[WebSearchResult]:
+        """Ignore the request and return no hits."""
         del request
         return []
 
 
 @dataclass
 class MemoryWebSearch:
-    """Deterministic provider for tests and host-supplied fixtures."""
+    """Deterministic provider for tests and host-supplied fixtures.
+
+    Attributes:
+        results: Preloaded hits returned (optionally domain-filtered).
+        name: Registry/health label (default ``memory``).
+        requests: Append-only log of calls (useful in unit tests).
+    """
 
     results: list[WebSearchResult] = field(default_factory=list)
     name: str = "memory"
     requests: list[WebSearchRequest] = field(default_factory=list)
 
     def search(self, request: WebSearchRequest) -> list[WebSearchResult]:
+        """Record ``request`` and return up to ``top_k`` domain-filtered rows."""
         self.requests.append(request)
         allowed = {d.lower() for d in request.domains}
         rows = self.results
@@ -46,10 +72,20 @@ class MemoryWebSearch:
 class HttpJsonWebSearch:
     """Adapter for a host-managed JSON search endpoint.
 
-    Request: ``GET endpoint?q=<query>&count=<top_k>``.
-    Response may be ``{"results": [...]}``, ``{"webPages":{"value":[...]}}``
+    Request: ``GET endpoint?q=<query>&count=<top_k>`` (and optional ``domains``).
+    Response may be ``{\"results\": [...]}``, ``{\"webPages\":{\"value\":[...]}}``
     (Bing-compatible), or a top-level list. Result fields accepted are
     ``title|name``, ``url``, and ``snippet|description``.
+
+    Args:
+        endpoint: Full HTTPS URL of the gateway (query string appended).
+        api_key: Optional subscription key.
+        timeout_seconds: urllib timeout (minimum 0.5s).
+        key_header: Header name for ``api_key`` (Bing-style default).
+
+    Raises:
+        ValueError: If endpoint is not ``https://``.
+        RuntimeError: On transport / JSON failures (caller may fail-open).
     """
 
     name = "http_json"
@@ -70,6 +106,7 @@ class HttpJsonWebSearch:
             raise ValueError("EDIM_WEB_SEARCH_ENDPOINT must use https://")
 
     def search(self, request: WebSearchRequest) -> list[WebSearchResult]:
+        """GET the gateway and normalize the JSON payload into results."""
         params = {"q": request.query, "count": str(max(1, request.top_k))}
         if request.domains:
             params["domains"] = ",".join(request.domains)
@@ -88,6 +125,7 @@ class HttpJsonWebSearch:
 
     @staticmethod
     def _normalize(payload: Any, top_k: int) -> list[WebSearchResult]:
+        """Map heterogeneous vendor JSON into ``WebSearchResult`` rows."""
         rows: Any = payload
         if isinstance(payload, dict):
             rows = payload.get("results")

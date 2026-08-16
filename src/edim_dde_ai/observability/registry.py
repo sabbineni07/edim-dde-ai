@@ -1,4 +1,16 @@
-"""Process-wide observability provider registry."""
+"""Process-wide observability provider registry.
+
+Business purpose:
+  Hold the active ``ObservabilityProvider`` for ``MetadataAgent.invoke``.
+  Configure from ``EDIM_OBSERVABILITY`` (none|langsmith|mlflow|auto) or install
+  an explicit provider in app startup.
+
+Public API:
+  - ``set_observability_provider`` / ``get_observability_provider`` /
+    ``clear_observability_provider``
+  - ``resolve_observability_name`` / ``create_observability_provider`` /
+    ``configure_observability_from_env``
+"""
 
 from __future__ import annotations
 
@@ -16,7 +28,11 @@ _PROVIDER: ObservabilityProvider = NoOpObservability()
 
 
 def set_observability_provider(provider: ObservabilityProvider) -> None:
-    """Install the process-wide observability backend."""
+    """Install the process-wide observability backend.
+
+    Args:
+        provider: Backend implementing ``ObservabilityProvider``.
+    """
     global _PROVIDER
     _PROVIDER = provider
     logger.info(
@@ -26,6 +42,7 @@ def set_observability_provider(provider: ObservabilityProvider) -> None:
 
 
 def get_observability_provider() -> ObservabilityProvider:
+    """Return the active provider (defaults to ``NoOpObservability``)."""
     return _PROVIDER
 
 
@@ -40,6 +57,15 @@ def resolve_observability_name(raw: str | None = None) -> str:
 
     Values: ``none`` | ``langsmith`` | ``mlflow`` | ``auto``.
     ``auto`` (or empty env): LangSmith if tracing env is on, else none.
+
+    Args:
+        raw: Explicit name, or ``None`` to read env.
+
+    Returns:
+        Canonical backend id: ``none``, ``langsmith``, or ``mlflow``.
+
+    Raises:
+        ValueError: Unknown name.
     """
     if raw is None:
         value = os.environ.get("EDIM_OBSERVABILITY", "").strip().lower()
@@ -62,7 +88,16 @@ def resolve_observability_name(raw: str | None = None) -> str:
 def create_observability_provider(
     name: str | None = None, **kwargs: Any
 ) -> ObservabilityProvider:
-    """Factory for built-in backends (``name`` overrides env when provided)."""
+    """Factory for built-in backends (``name`` overrides env when provided).
+
+    Args:
+        name: Optional backend name (see ``resolve_observability_name``).
+        **kwargs: Forwarded to the backend constructor.
+
+    Returns:
+        A new provider instance (not installed until ``set_*`` /
+        ``configure_observability_from_env``).
+    """
     resolved = resolve_observability_name(name)
     if resolved == "none":
         return NoOpObservability()
@@ -80,6 +115,12 @@ def configure_observability_from_env(**kwargs: Any) -> ObservabilityProvider:
 
     For LangSmith, defaults ``ensure_env=True`` so ``LANGCHAIN_TRACING_V2`` is
     set when unset (API key + project still required for SaaS).
+
+    Args:
+        **kwargs: Forwarded to the backend constructor.
+
+    Returns:
+        The installed provider.
     """
     resolved = resolve_observability_name(None)
     if resolved == "langsmith":

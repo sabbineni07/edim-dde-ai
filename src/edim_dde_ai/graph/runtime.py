@@ -1,16 +1,17 @@
 """Runtime wrapper around a compiled LangGraph agent.
 
-``MetadataAgent`` is the product-facing invoke surface: callers pass and receive
-flat dicts. Internally the graph uses an open ``data`` bag so arbitrary metadata
-keys survive node merges.
+Business purpose:
+  Product-facing invoke surface: callers pass and receive flat dicts. Internally
+  the graph uses an open ``data`` bag so arbitrary metadata keys survive node
+  merges. Observability providers enrich kwargs before each invoke.
 
-``invoke`` / ``ainvoke`` share Template Method steps ``_prepare`` / ``_extract``.
+Public API:
+  - ``MetadataAgent`` — ``invoke`` / ``ainvoke`` over a compiled graph
 
 Example::
 
     agent.invoke({"cluster_id": "c1", "include_explanation": True})
 """
-
 
 from __future__ import annotations
 
@@ -26,6 +27,11 @@ class MetadataAgent:
     ``data`` bag so arbitrary metadata keys are preserved across nodes.
 
     ``invoke`` / ``ainvoke`` share Template Method steps ``_prepare`` / ``_extract``.
+
+    Attributes:
+        definition: Source ``AgentDefinition``.
+        graph: Compiled LangGraph runnable.
+        agent_id: Convenience mirror of ``definition.agent_id``.
     """
 
     def __init__(self, definition: AgentDefinition, compiled_graph: Any) -> None:
@@ -34,12 +40,24 @@ class MetadataAgent:
         self.agent_id = definition.agent_id
 
     def _prepare(self, state: dict[str, Any] | None) -> dict[str, Any]:
+        """Wrap flat caller state into LangGraph ``AgentState``."""
         return {"data": dict(state or {})}
 
     def _extract(self, out: dict[str, Any] | None) -> dict[str, Any]:
+        """Unwrap the ``data`` bag from graph output."""
         return dict((out or {}).get("data") or {})
 
     def invoke(self, state: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Synchronously run the graph.
+
+        Args:
+            state: Flat metadata input (default empty).
+            **kwargs: Forwarded to LangGraph after observability merge
+                (e.g. ``config=...``).
+
+        Returns:
+            Flat metadata dict from the final ``data`` bag.
+        """
         from edim_dde_ai.observability import get_observability_provider
 
         kwargs = get_observability_provider().merge_invoke_kwargs(self.agent_id, kwargs)
@@ -49,6 +67,15 @@ class MetadataAgent:
     async def ainvoke(
         self, state: dict[str, Any] | None = None, **kwargs: Any
     ) -> dict[str, Any]:
+        """Async variant of ``invoke``.
+
+        Args:
+            state: Flat metadata input (default empty).
+            **kwargs: Forwarded to LangGraph after observability merge.
+
+        Returns:
+            Flat metadata dict from the final ``data`` bag.
+        """
         from edim_dde_ai.observability import get_observability_provider
 
         kwargs = get_observability_provider().merge_invoke_kwargs(self.agent_id, kwargs)

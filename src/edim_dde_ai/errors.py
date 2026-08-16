@@ -1,12 +1,19 @@
 """Framework errors.
 
-All public exceptions subclass ``FoundationError``. Use specific types for
-definition/loader/registry failures so callers can handle precisely.
+Business purpose:
+  All public exceptions subclass ``FoundationError``. Use specific types for
+  definition/loader/registry failures so callers can handle precisely.
+
+Public API:
+  - ``FoundationError`` — base
+  - ``DefinitionError`` / ``LoaderError``
+  - ``NodeRegistryError`` / ``AgentRegistryError`` / ``ChainInvokerError`` /
+    ``RouterRegistryError``
+  - ``ContentError``
 
 ``RouterRegistryError`` covers unknown routers and invalid router config
 (for example missing ``field`` for ``field_truthy``).
 """
-
 
 
 class FoundationError(Exception):
@@ -14,11 +21,11 @@ class FoundationError(Exception):
 
 
 class DefinitionError(FoundationError):
-    """Invalid agent definition."""
+    """Invalid agent definition (YAML/JSON shape or contract blocks)."""
 
 
 class LoaderError(FoundationError):
-    """YAML load / path errors."""
+    """YAML load / path errors (I/O, parse, empty file)."""
 
 
 class NodeRegistryError(FoundationError):
@@ -30,11 +37,11 @@ class AgentRegistryError(FoundationError):
 
 
 class ChainInvokerError(FoundationError):
-    """Missing or failed chain invoker."""
+    """Missing or failed chain invoker / default LLM path."""
 
 
 class RouterRegistryError(FoundationError):
-    """Unknown or duplicate router."""
+    """Unknown or duplicate router, or invalid router config."""
 
 
 class ContentError(FoundationError):

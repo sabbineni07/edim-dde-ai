@@ -1,4 +1,25 @@
-"""FAISS file-backed retrieval (local path or Databricks Volume path)."""
+"""FAISS file-backed retrieval (local path or Databricks Volume path).
+
+Business purpose
+----------------
+Control-plane-adjacent knowledge indexes that live as ``{corpus}.faiss`` +
+``.meta.json`` sidecars. Suitable for local demos and Databricks Volumes
+without Azure AI Search. Uses ``HashingEmbedder`` by default.
+
+Public API
+----------
+* ``FaissRetrieval`` — ``RetrievalProvider`` over a directory of indexes
+* ``build_faiss_index_from_dir`` — bootstrap helper for Jobs / local ingest
+
+Install: ``pip install 'edim-dde-ai[faiss]'``
+
+Env
+---
+* ``EDIM_FAISS_INDEX_PATH`` — directory for ``{corpus}.faiss`` + ``.meta.json``
+  (local filesystem **or** Databricks Volume, e.g.
+  ``/Volumes/catalog/schema/edim_indexes``)
+* ``EDIM_FAISS_DIM`` — embed dimension (default ``384``; must match index)
+"""
 
 from __future__ import annotations
 
@@ -15,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def _corpus_paths(base: Path, corpus: str) -> tuple[Path, Path]:
+    """Map a corpus name to FAISS index + JSON meta paths (filesystem-safe)."""
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in corpus)
     return base / f"{safe}.faiss", base / f"{safe}.meta.json"
 
@@ -36,6 +58,17 @@ class FaissRetrieval:
         index_dir: str | Path | None = None,
         embedder: HashingEmbedder | None = None,
     ) -> None:
+        """Open or create a FAISS index directory.
+
+        Args:
+            index_dir: Directory for per-corpus files; defaults to
+                ``EDIM_FAISS_INDEX_PATH``.
+            embedder: Vectorizer; defaults to ``HashingEmbedder`` with
+                ``EDIM_FAISS_DIM``.
+
+        Raises:
+            RuntimeError: Missing ``faiss``/``numpy`` extras or index path.
+        """
         try:
             import faiss  # noqa: F401
             import numpy as np  # noqa: F401
@@ -65,9 +98,15 @@ class FaissRetrieval:
 
     @property
     def name(self) -> str:
+        """Backend id for health / logs (``faiss``)."""
         return "faiss"
 
     def ping(self) -> bool:
+        """Return whether the index directory exists.
+
+        Returns:
+            ``True`` if ``index_dir`` is a directory.
+        """
         return self._dir.is_dir()
 
     def _load(self, corpus: str) -> tuple[Any, list[dict[str, Any]]]:
@@ -97,6 +136,17 @@ class FaissRetrieval:
         metadata: dict | None = None,
         source: str | None = None,
     ) -> None:
+        """Index or replace one document (rebuilds vectors if id already exists).
+
+        Small corpora only — production Jobs should batch rebuilds.
+
+        Args:
+            corpus: Logical corpus (file stem).
+            doc_id: Document id within the corpus.
+            text: Body text to embed.
+            metadata: Optional opaque fields stored in the meta sidecar.
+            source: Optional origin label.
+        """
         index, meta = self._load(corpus)
         # Rebuild without this id then append (small corpora; Jobs should batch).
         kept = [m for m in meta if m.get("id") != doc_id]
@@ -128,6 +178,15 @@ class FaissRetrieval:
         return index, meta
 
     def delete(self, *, corpus: str, doc_id: str) -> bool:
+        """Remove a document and rebuild the FAISS index.
+
+        Args:
+            corpus: Logical corpus name.
+            doc_id: Document id to remove.
+
+        Returns:
+            ``True`` if a document was removed; ``False`` if missing.
+        """
         index, meta = self._load(corpus)
         kept = [m for m in meta if m.get("id") != doc_id]
         if len(kept) == len(meta):
@@ -137,6 +196,14 @@ class FaissRetrieval:
         return True
 
     def search(self, request: SearchRequest) -> list[RetrievalHit]:
+        """Nearest-neighbor search; optional keyword boost for hybrid/keyword mode.
+
+        Args:
+            request: Query, corpus, ``top_k``, and ``search_mode``.
+
+        Returns:
+            Ranked hits (empty if index empty or query blank).
+        """
         index, meta = self._load(request.corpus)
         if index.ntotal == 0 or not meta or not (request.query or "").strip():
             return []
@@ -179,6 +246,18 @@ def build_faiss_index_from_dir(
     """Index markdown (or text) files into FAISS. Returns document count.
 
     Used by platform Jobs and local bootstrap. Paths may be local or Volumes.
+
+    Args:
+        corpus: Target corpus name.
+        source_dir: Root directory to scan.
+        index_dir: FAISS output directory (defaults to env).
+        glob: Glob relative to ``source_dir`` (default ``**/*.md``).
+
+    Returns:
+        Number of non-empty files upserted.
+
+    Raises:
+        FileNotFoundError: If ``source_dir`` is missing.
     """
     provider = FaissRetrieval(index_dir=index_dir)
     root = Path(source_dir).expanduser()

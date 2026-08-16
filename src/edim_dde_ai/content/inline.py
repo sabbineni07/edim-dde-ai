@@ -1,4 +1,12 @@
-"""Inline prompts/skills stored from agent YAML dicts."""
+"""Inline prompts/skills stored from agent YAML dicts.
+
+Business purpose:
+  Hold prompts/skills declared inside agent YAML (``prompts`` / ``skills`` blocks)
+  in memory as the default ContentHub backend when no directory override applies.
+
+Public API:
+  - ``InlineContentStore`` — mutable in-memory PromptProvider + SkillProvider
+"""
 
 from __future__ import annotations
 
@@ -19,27 +27,39 @@ class InlineContentStore:
         self._skills: dict[str, list[Skill]] = {}
 
     def clear(self) -> None:
+        """Drop all prompts and skills."""
         self._prompts.clear()
         self._skills.clear()
 
     def set_prompt(self, agent_id: str, chain: str, role: str, text: str) -> None:
+        """Upsert one prompt text."""
         self._prompts[(agent_id, chain, role)] = text
 
     def get_prompt(self, agent_id: str, chain: str, role: str) -> str | None:
+        """Return prompt text or ``None``."""
         return self._prompts.get((agent_id, chain, role))
 
     def register_skill(self, agent_id: str, skill: Skill) -> None:
+        """Append or replace a skill with the same ``key`` for ``agent_id``."""
         skills = self._skills.setdefault(agent_id, [])
         # Replace same key if present
         skills[:] = [s for s in skills if s.key != skill.key]
         skills.append(skill)
 
     def list_skills(self, agent_id: str, *, chain: str | None = None) -> list[Skill]:
+        """Return a copy of skills for ``agent_id`` (``chain`` reserved)."""
         del chain  # reserved for future per-chain skills
         return list(self._skills.get(agent_id, []))
 
     def load_from_definition(self, definition: AgentDefinition) -> None:
-        """Merge ``prompts`` / ``skills`` from definition.raw into this store."""
+        """Merge ``prompts`` / ``skills`` from definition.raw into this store.
+
+        Args:
+            definition: Agent definition whose ``raw`` may include content blocks.
+
+        Raises:
+            ContentError: Invalid shapes/types in YAML content blocks.
+        """
         raw = definition.raw or {}
         agent_id = definition.agent_id
         prompts = raw.get("prompts")
@@ -83,7 +103,12 @@ class InlineContentStore:
                 self.register_skill(agent_id, Skill(key=key, title=title, content=content))
 
     def load_from_raw(self, agent_id: str, raw: dict[str, Any]) -> None:
-        """Convenience: wrap raw dict as a minimal definition-like load."""
+        """Convenience: wrap raw dict as a minimal definition-like load.
+
+        Args:
+            agent_id: Agent id to attribute content to.
+            raw: Mapping that may contain ``prompts`` / ``skills``.
+        """
         from edim_dde_ai.core.definition import AgentDefinition, EntrySpec
 
         stub = AgentDefinition(

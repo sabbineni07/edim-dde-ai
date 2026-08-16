@@ -1,4 +1,17 @@
-"""Retrieval hit and search request models (backend-agnostic)."""
+"""Backend-agnostic retrieval hit and search request models.
+
+Business purpose
+----------------
+Every ``RetrievalProvider`` speaks the same request/response shapes so graph
+nodes and prompt formatters stay backend-agnostic. Hits are also the input to
+``experiences.dedupe.dedupe_retrieval_hits`` before LLM context injection.
+
+Public API
+----------
+* ``RetrievalHit`` — one ranked chunk (``to_dict`` / ``from_dict``)
+* ``SearchRequest`` — normalized search args
+* ``format_hits_as_context`` — render hits for RAG prompt blocks
+"""
 
 from __future__ import annotations
 
@@ -8,7 +21,15 @@ from typing import Any
 
 @dataclass
 class RetrievalHit:
-    """One ranked document/chunk from similarity or hybrid search."""
+    """One ranked document/chunk from similarity or hybrid search.
+
+    Attributes:
+        id: Stable document/chunk id within the corpus.
+        text: Body text injected into prompts.
+        score: Backend similarity / relevance score (higher is better).
+        metadata: Opaque provider fields (paths, action signatures, etc.).
+        source: Optional origin label (file path, URI).
+    """
 
     id: str
     text: str
@@ -17,10 +38,24 @@ class RetrievalHit:
     source: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dict (JSON-friendly).
+
+        Returns:
+            Field mapping suitable for logs, caches, or wire payloads.
+        """
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RetrievalHit:
+        """Build a hit from a dict (tolerant of missing keys).
+
+        Args:
+            data: Mapping with optional ``id``, ``text``, ``score``,
+                ``metadata``, ``source``.
+
+        Returns:
+            Normalized ``RetrievalHit`` (empty strings / 0.0 when absent).
+        """
         return cls(
             id=str(data.get("id") or ""),
             text=str(data.get("text") or ""),
@@ -32,7 +67,15 @@ class RetrievalHit:
 
 @dataclass
 class SearchRequest:
-    """Normalized search request passed to every RetrievalProvider."""
+    """Normalized search request passed to every ``RetrievalProvider``.
+
+    Attributes:
+        query: Natural-language or keyword query string.
+        corpus: Logical corpus name (default ``default``).
+        top_k: Maximum hits to return.
+        search_mode: ``vector`` | ``keyword`` | ``hybrid`` (provider-dependent).
+        filters: Optional backend-specific filter map.
+    """
 
     query: str
     corpus: str = "default"
@@ -44,7 +87,22 @@ class SearchRequest:
 def format_hits_as_context(
     hits: list[RetrievalHit], *, max_chars: int = 8000
 ) -> str:
-    """Render hits for LLM prompt injection (RAG context block)."""
+    """Render hits for LLM prompt injection (RAG context block).
+
+    Stops adding chunks once the next chunk would exceed ``max_chars``.
+
+    Args:
+        hits: Ranked retrieval results (already truncated/deduped by caller).
+        max_chars: Soft character budget for the assembled context string.
+
+    Returns:
+        Multi-hit text block, or a fixed placeholder when ``hits`` is empty.
+
+    Example::
+
+        ctx = format_hits_as_context(hits, max_chars=4000)
+        prompt = f"Use these runbooks:\\n{ctx}\\n\\nQuestion: ..."
+    """
     if not hits:
         return "(no runbook / knowledge hits retrieved)"
     parts: list[str] = []

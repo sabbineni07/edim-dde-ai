@@ -1,7 +1,33 @@
 """Pluggable recommendation lifecycle / history stores.
 
-Strategy backends: ``none`` · ``memory`` · ``postgres`` · ``cosmos`` · ``redis``.
-Factory + process registry mirror ``edim_dde_ai.store`` (control-plane StateStore).
+Business purpose
+----------------
+Agents produce recommendations that engineers accept, reject, apply, or
+supersede. This package persists that **product history** separately from
+control-plane catalog/session state (``edim_dde_ai.store``).
+
+How it fits the platform
+------------------------
+* Strategy backends: ``none`` · ``memory`` · ``postgres`` · ``cosmos`` · ``redis``
+* Process registry + env factory mirror ``StateStore`` so local Compose and
+  deployed Cosmos stay aligned (``EDIM_RECOMMENDATION_STORE`` can inherit
+  ``EDIM_STATE_STORE``).
+* ``set_recommendation_store`` wraps the backend with
+  ``ExperienceIndexingStore`` so experience-index upserts stay orthogonal.
+
+Layers
+------
+* ``models`` — ``RecommendationRecord``, statuses, id helper
+* ``protocols`` — ``RecommendationStore`` interface
+* ``support`` — shared filter / status mixin / payload helpers
+* ``none_store`` / ``memory`` / ``postgres`` / ``cosmos`` / ``redis_store``
+* ``registry`` — get/set + ``create_*`` / ``configure_*_from_env``
+
+Public API
+----------
+Eager imports below; optional heavy backends via ``__getattr__``
+(``PostgresRecommendationStore``, ``CosmosRecommendationStore``,
+``RedisRecommendationStore``).
 """
 
 from edim_dde_ai.recommendations.memory import MemoryRecommendationStore
@@ -38,6 +64,7 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    """Lazy-load optional backend classes (postgres / cosmos / redis extras)."""
     if name == "PostgresRecommendationStore":
         from edim_dde_ai.recommendations.postgres import PostgresRecommendationStore
 
