@@ -23,6 +23,7 @@ from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 
+from edim_dde_ai.core.bindings import resolve_llm_binding
 from edim_dde_ai.core.definition import AgentDefinition
 from edim_dde_ai.graph.adapters import adapt_node, adapt_router
 from edim_dde_ai.registry.nodes import get_node_factory
@@ -82,6 +83,21 @@ class GraphBuilder:
                 # YAML uses agent_id for the *target*; do not overwrite with parent id.
                 if "agent_id" in node.config:
                     cfg["agent_id"] = node.config["agent_id"]
+            # Phase 1: optional bindings.llm → inject into llm_chain config.
+            if node.type == "llm_chain":
+                resolved = resolve_llm_binding(self.definition.bindings)
+                if resolved.endpoint:
+                    cfg.setdefault("endpoint", resolved.endpoint)
+                if resolved.deployment:
+                    cfg.setdefault("deployment", resolved.deployment)
+                if resolved.temperature is not None:
+                    cfg.setdefault("temperature", resolved.temperature)
+                if resolved.top_p is not None:
+                    cfg.setdefault("top_p", resolved.top_p)
+                if resolved.top_k is not None:
+                    cfg.setdefault("top_k", resolved.top_k)
+                if resolved.max_tokens is not None:
+                    cfg.setdefault("max_tokens", resolved.max_tokens)
             runnable = factory(cfg)
             self._builder.add_node(node.id, adapt_node(runnable))
         return self

@@ -2,7 +2,7 @@
 
 Business purpose:
   Structural graph validation remains in ``core.definition``. This module checks
-  optional R1 contract blocks (metadata, model, security, evaluation, hitl, rag)
+  optional R1 contract blocks (metadata, model, bindings, security, evaluation, hitl, rag)
   when present, and can optionally load ``schemas/agent.schema.json`` if the
   ``jsonschema`` package is installed.
 
@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from edim_dde_ai.core.bindings import parse_agent_bindings
 from edim_dde_ai.errors import DefinitionError
 
 _RISK = frozenset({"low", "medium", "high"})
@@ -66,6 +67,9 @@ def validate_extended_blocks(data: dict[str, Any]) -> None:
         ref = model.get("ref")
         if ref is not None and (not isinstance(ref, str) or not ref.strip()):
             raise DefinitionError("model.ref must be a non-empty string")
+
+    # Optional Phase 1 infra bindings (shape only; env resolve at graph build).
+    parse_agent_bindings(data)
 
     tools = data.get("tools")
     if tools is not None and not isinstance(tools, list):

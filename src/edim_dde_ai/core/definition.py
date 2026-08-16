@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from edim_dde_ai.core.bindings import AgentBindings, parse_agent_bindings
 from edim_dde_ai.errors import DefinitionError
 
 _RESERVED = frozenset({"START", "END"})
@@ -102,6 +103,7 @@ class AgentDefinition:
         nodes: Ordered node specs.
         edges: Unconditional ``(source, target)`` pairs (may include START).
         conditional_edges: Router-backed branches.
+        bindings: Optional infra bindings (LLM endpoint/deployment Phase 1).
         raw: Original mapping (prompts/skills/content_dir live here).
         source_path: Absolute YAML path when loaded from disk (for content_dir).
     """
@@ -114,6 +116,7 @@ class AgentDefinition:
     nodes: tuple[NodeSpec, ...]
     edges: tuple[tuple[str, str], ...]
     conditional_edges: tuple[ConditionalEdgeSpec, ...] = ()
+    bindings: AgentBindings | None = None
     raw: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
     source_path: str | None = None
 
@@ -331,5 +334,6 @@ def parse_agent_definition(data: dict[str, Any]) -> AgentDefinition:
         nodes=tuple(nodes),
         edges=tuple(edges),
         conditional_edges=tuple(conditional_edges),
+        bindings=parse_agent_bindings(data),
         raw=data,
     )

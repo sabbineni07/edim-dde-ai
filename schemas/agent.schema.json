@@ -47,6 +47,104 @@
       },
       "additionalProperties": true
     },
+    "bindings": {
+      "description": "Optional per-agent infra overrides; omit to use process .env globals. Use ${ENV:VAR} for URLs/names — never put API keys or secrets in YAML. LLM sampling knobs are literal numbers. Phase 1 wires llm; search/cosmos/sql-warehouse are shape-validated for forward-compatible demos.",
+      "type": "object",
+      "properties": {
+        "llm": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Foundry/OpenAI base URL or ${ENV:VAR_NAME}"
+            },
+            "deployment": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Deployment/model name or ${ENV:VAR_NAME}"
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2,
+              "description": "Literal sampling temperature (not an env ref)"
+            },
+            "top_p": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Literal nucleus sampling top_p"
+            },
+            "top_k": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "description": "Literal top_k (provider-dependent; injected on config)"
+            },
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 128000,
+              "description": "Literal max completion tokens"
+            }
+          },
+          "additionalProperties": true
+        },
+        "search": {
+          "type": "object",
+          "description": "Azure AI Search (parsed today; runtime injection later)",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Search service URL or ${ENV:VAR_NAME}"
+            },
+            "index": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Physical index name or ${ENV:VAR_NAME}"
+            }
+          },
+          "additionalProperties": true
+        },
+        "cosmos": {
+          "type": "object",
+          "description": "Cosmos DB (parsed today; runtime injection later)",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Cosmos account URL or ${ENV:VAR_NAME}"
+            },
+            "database": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Database name or ${ENV:VAR_NAME}"
+            }
+          },
+          "additionalProperties": true
+        },
+        "sql-warehouse": {
+          "type": "object",
+          "description": "Databricks SQL warehouse (parsed today; runtime injection later)",
+          "properties": {
+            "host": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace host or ${ENV:VAR_NAME}"
+            },
+            "http_path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Warehouse HTTP path or ${ENV:VAR_NAME}"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "tools": {
       "type": "array",
       "items": { "type": "object" }

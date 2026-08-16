@@ -237,6 +237,8 @@ def llm_chain_factory(config: dict[str, Any]):
       output_key: str — state key for the result (default ``llm_raw``)
       attach_skills: bool — append domain skills to system prompt (default False)
       agent_id: str — injected by GraphBuilder for prompt lookup
+      endpoint / deployment: optional — injected from agent ``bindings.llm``
+        when configured (Foundry uses these; omit → process globals)
 
     Args:
         config: See Config above.
