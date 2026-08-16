@@ -204,6 +204,37 @@ def test_resolve_search_binding_omitted():
     assert resolved.index is None
 
 
+def test_resolve_cosmos_and_sql_warehouse_bindings():
+    from edim_dde_ai.core.bindings import (
+        CosmosBinding,
+        SqlWarehouseBinding,
+        resolve_cosmos_binding,
+        resolve_sql_warehouse_binding,
+    )
+
+    bindings = AgentBindings(
+        cosmos=CosmosBinding(
+            endpoint="${ENV:C_EP}",
+            database="${ENV:C_DB}",
+        ),
+        sql_warehouse=SqlWarehouseBinding(
+            host="${ENV:W_HOST}",
+            http_path="${ENV:W_PATH}",
+        ),
+    )
+    cosmos = resolve_cosmos_binding(
+        bindings, environ={"C_EP": "https://c.example", "C_DB": "edim"}
+    )
+    assert cosmos.endpoint == "https://c.example"
+    assert cosmos.database == "edim"
+    sql = resolve_sql_warehouse_binding(
+        bindings,
+        environ={"W_HOST": "adb.example.net", "W_PATH": "/sql/1.0/warehouses/abc"},
+    )
+    assert sql.host == "adb.example.net"
+    assert sql.http_path == "/sql/1.0/warehouses/abc"
+
+
 def test_graph_builder_injects_llm_bindings(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("EDIM_FOUNDRY_ENDPOINT_RCA", "https://rca.example.com")
     monkeypatch.setenv("EDIM_FOUNDRY_DEPLOYMENT_RCA", "gpt-rca")
@@ -326,3 +357,47 @@ graph:
     assert captured.get("endpoint") == "https://rca-search.example"
     assert captured.get("index") == "spark-runbooks-v2"
     assert captured.get("corpus") == "spark-runbooks"
+
+
+def test_graph_builder_injects_sql_warehouse_bindings(tmp_path: Path, monkeypatch):
+    from edim_dde_ai import register_node
+
+    monkeypatch.setenv("DATABRICKS_HOST_RCA", "https://adb-rca.example.net")
+    monkeypatch.setenv("DATABRICKS_HTTP_PATH_RCA", "/sql/1.0/warehouses/rca")
+
+    captured: dict = {}
+
+    @register_node("domain.sql.query")
+    def _capture_sql(config):
+        captured.clear()
+        captured.update(config)
+
+        def _node(state):
+            return {"rows": []}
+
+        return _node
+
+    yaml_text = """
+agent_id: bindings_sql_demo
+bindings:
+  sql-warehouse:
+    host: ${ENV:DATABRICKS_HOST_RCA}
+    http_path: ${ENV:DATABRICKS_HTTP_PATH_RCA}
+graph:
+  entry: q
+  nodes:
+    - id: q
+      type: domain.sql.query
+      source: edim_sql_wh
+      query: SELECT 1
+      output_key: rows
+  edges:
+    - [q, END]
+"""
+    path = tmp_path / "bindings_sql.agent.yaml"
+    path.write_text(yaml_text, encoding="utf-8")
+    register_from_yaml(path)
+    create_agent("bindings_sql_demo").invoke({})
+    assert captured.get("host") == "https://adb-rca.example.net"
+    assert captured.get("server_hostname") == "https://adb-rca.example.net"
+    assert captured.get("http_path") == "/sql/1.0/warehouses/rca"

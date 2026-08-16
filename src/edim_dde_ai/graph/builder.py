@@ -23,7 +23,11 @@ from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from edim_dde_ai.core.bindings import resolve_llm_binding, resolve_search_binding
+from edim_dde_ai.core.bindings import (
+    resolve_llm_binding,
+    resolve_search_binding,
+    resolve_sql_warehouse_binding,
+)
 from edim_dde_ai.core.definition import AgentDefinition
 from edim_dde_ai.graph.adapters import adapt_node, adapt_router
 from edim_dde_ai.registry.nodes import get_node_factory
@@ -105,6 +109,16 @@ class GraphBuilder:
                     cfg.setdefault("endpoint", resolved_search.endpoint)
                 if resolved_search.index:
                     cfg.setdefault("index", resolved_search.index)
+            # Optional bindings.sql-warehouse → inject into domain.sql.query.
+            if node.type == "domain.sql.query":
+                resolved_sql = resolve_sql_warehouse_binding(
+                    self.definition.bindings
+                )
+                if resolved_sql.host:
+                    cfg.setdefault("server_hostname", resolved_sql.host)
+                    cfg.setdefault("host", resolved_sql.host)
+                if resolved_sql.http_path:
+                    cfg.setdefault("http_path", resolved_sql.http_path)
             runnable = factory(cfg)
             self._builder.add_node(node.id, adapt_node(runnable))
         return self

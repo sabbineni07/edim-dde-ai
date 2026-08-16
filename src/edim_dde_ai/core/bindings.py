@@ -1,4 +1,4 @@
-"""Optional per-agent infra bindings (LLM + Search wired; cosmos/sql shape-only).
+"""Optional per-agent infra bindings (LLM + Search + SQL + Cosmos wired).
 
 Business purpose
 ----------------
@@ -7,21 +7,26 @@ needs a different target, declare optional ``bindings.*`` in YAML using
 ``${ENV:VAR}`` refs for URLs/names — never embed secrets. LLM sampling knobs
 (``temperature``, ``top_p``, ``top_k``, ``max_tokens``) are **literal** values.
 
-Resolution (LLM + Search)
--------------------------
+Resolution
+----------
 1. String keys present → ``resolve_env_ref`` (fail closed if env missing)
 2. Numeric LLM knobs present → validated literals (injected into ``llm_chain``)
 3. Key omitted → ``None`` (caller uses process / chain defaults)
 4. Entire ``bindings`` omitted → all globals
 
-``cosmos`` / ``sql-warehouse`` are shape-validated today; runtime injection later.
+Planes:
+* ``llm`` → ``llm_chain`` config
+* ``search`` → ``rag.retrieve`` / ``search_corpus``
+* ``sql-warehouse`` → ``domain.sql.query`` host/http_path overlay
+* ``cosmos`` → StateStore + RecommendationStore configure kwargs (process-wide)
 
 Public API
 ----------
 * ``LlmBinding`` / ``SearchBinding`` / ``CosmosBinding`` / ``SqlWarehouseBinding``
 * ``AgentBindings`` / ``parse_agent_bindings``
-* ``resolve_llm_binding`` — env-resolved + literal LLM knobs (None = default)
-* ``resolve_search_binding`` — env-resolved Search endpoint/index (None = default)
+* ``resolve_llm_binding`` / ``resolve_search_binding`` /
+  ``resolve_cosmos_binding`` / ``resolve_sql_warehouse_binding``
+* ``collect_cosmos_configure_kwargs`` — scan registered agents for Cosmos overrides
 """
 
 from __future__ import annotations
@@ -70,11 +75,12 @@ class SearchBinding:
 
 @dataclass(frozen=True)
 class CosmosBinding:
-    """Optional Cosmos DB overrides (shape only until Phase 2 wiring).
+    """Optional Cosmos DB overrides for control-plane + recommendation stores.
 
     Attributes:
         endpoint: Account URL, or ``${ENV:…}``, or None.
         database: Database name, or ``${ENV:…}``, or None.
+        Key stays ``EDIM_COSMOS_KEY`` (never YAML).
     """
 
     endpoint: str | None = None
@@ -83,7 +89,7 @@ class CosmosBinding:
 
 @dataclass(frozen=True)
 class SqlWarehouseBinding:
-    """Optional Databricks SQL warehouse overrides (shape only until Phase 2).
+    """Optional Databricks SQL warehouse overrides for ``domain.sql.query``.
 
     YAML key is ``sql-warehouse`` (hyphen). Attributes:
         host: Workspace host, or ``${ENV:…}``, or None.
@@ -101,8 +107,9 @@ class AgentBindings:
     Attributes:
         llm: LLM plane (resolved at graph build into ``llm_chain``).
         search: Azure AI Search plane (resolved into ``rag.retrieve``).
-        cosmos: Cosmos DB plane (parsed; wiring later).
-        sql_warehouse: Databricks SQL warehouse (YAML: ``sql-warehouse``).
+        cosmos: Cosmos DB plane (resolved into store configure kwargs).
+        sql_warehouse: Databricks SQL warehouse (YAML: ``sql-warehouse``;
+            resolved into ``domain.sql.query``).
     """
 
     llm: LlmBinding | None = None
@@ -144,6 +151,36 @@ class ResolvedSearchBinding:
 
     endpoint: str | None = None
     index: str | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedCosmosBinding:
+    """Env-resolved Cosmos account for StateStore + RecommendationStore.
+
+    ``None`` fields mean use process ``EDIM_COSMOS_*``.
+
+    Attributes:
+        endpoint: Concrete account URL, or None.
+        database: Concrete database name, or None.
+    """
+
+    endpoint: str | None = None
+    database: str | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedSqlWarehouseBinding:
+    """Env-resolved Databricks SQL warehouse for ``domain.sql.query``.
+
+    ``None`` fields mean use the named ``sources.yaml`` entry / process env.
+
+    Attributes:
+        host: Concrete workspace host, or None.
+        http_path: Concrete warehouse HTTP path, or None.
+    """
+
+    host: str | None = None
+    http_path: str | None = None
 
 
 def _optional_str_field(
@@ -350,3 +387,110 @@ def resolve_search_binding(
         field_path="bindings.search.index",
     )
     return ResolvedSearchBinding(endpoint=endpoint, index=index)
+
+
+def resolve_cosmos_binding(
+    bindings: AgentBindings | None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> ResolvedCosmosBinding:
+    """Resolve ``bindings.cosmos`` env refs for store configure overrides.
+
+    Args:
+        bindings: Parsed agent bindings (may be ``None``).
+        environ: Optional env map for tests.
+
+    Returns:
+        ``ResolvedCosmosBinding`` with concrete strings or ``None`` per field.
+
+    Raises:
+        EnvRefError: Declared ``${ENV:…}`` missing/empty.
+    """
+    if bindings is None or bindings.cosmos is None:
+        return ResolvedCosmosBinding()
+    cosmos = bindings.cosmos
+    endpoint = resolve_env_ref(
+        cosmos.endpoint,
+        environ=environ,
+        field_path="bindings.cosmos.endpoint",
+    )
+    database = resolve_env_ref(
+        cosmos.database,
+        environ=environ,
+        field_path="bindings.cosmos.database",
+    )
+    return ResolvedCosmosBinding(endpoint=endpoint, database=database)
+
+
+def resolve_sql_warehouse_binding(
+    bindings: AgentBindings | None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> ResolvedSqlWarehouseBinding:
+    """Resolve ``bindings.sql-warehouse`` for ``domain.sql.query`` injection.
+
+    Args:
+        bindings: Parsed agent bindings (may be ``None``).
+        environ: Optional env map for tests.
+
+    Returns:
+        ``ResolvedSqlWarehouseBinding`` with concrete strings or ``None`` per field.
+
+    Raises:
+        EnvRefError: Declared ``${ENV:…}`` missing/empty.
+    """
+    if bindings is None or bindings.sql_warehouse is None:
+        return ResolvedSqlWarehouseBinding()
+    wh = bindings.sql_warehouse
+    host = resolve_env_ref(
+        wh.host,
+        environ=environ,
+        field_path="bindings.sql-warehouse.host",
+    )
+    http_path = resolve_env_ref(
+        wh.http_path,
+        environ=environ,
+        field_path="bindings.sql-warehouse.http_path",
+    )
+    return ResolvedSqlWarehouseBinding(host=host, http_path=http_path)
+
+
+def collect_cosmos_configure_kwargs(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Scan registered agents for a consistent ``bindings.cosmos`` override.
+
+    Returns endpoint/database kwargs suitable for
+    ``configure_state_store_from_env`` / ``configure_recommendation_store_from_env``
+    when the backend is Cosmos. Empty dict when no agent declares cosmos bindings.
+
+    Raises:
+        DefinitionError: Agents declare conflicting cosmos endpoint/database.
+        EnvRefError: Declared ``${ENV:…}`` missing/empty.
+    """
+    from edim_dde_ai.registry.agents import get_agent_definition, list_agents
+
+    resolved_rows: list[ResolvedCosmosBinding] = []
+    for agent_id in list_agents():
+        defn = get_agent_definition(agent_id)
+        resolved = resolve_cosmos_binding(defn.bindings, environ=environ)
+        if resolved.endpoint or resolved.database:
+            resolved_rows.append(resolved)
+    if not resolved_rows:
+        return {}
+
+    endpoints = {r.endpoint for r in resolved_rows if r.endpoint}
+    databases = {r.database for r in resolved_rows if r.database}
+    if len(endpoints) > 1 or len(databases) > 1:
+        raise DefinitionError(
+            "conflicting bindings.cosmos across registered agents; "
+            "use one endpoint/database or omit agent cosmos bindings "
+            "and rely on process EDIM_COSMOS_*"
+        )
+    kwargs: dict[str, str] = {}
+    if endpoints:
+        kwargs["endpoint"] = next(iter(endpoints))
+    if databases:
+        kwargs["database"] = next(iter(databases))
+    return kwargs
