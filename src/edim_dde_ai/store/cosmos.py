@@ -85,17 +85,17 @@ class CosmosStateStore:
 
         client = CosmosClient(endpoint, credential=key)
         db = client.create_database_if_not_exists(id=db_name)
+        agent_pk = PartitionKey(path="/agent_id")
+        session_pk = PartitionKey(path="/session_id")
+        audit_pk = PartitionKey(path="/event_id")
         self._agents = db.create_container_if_not_exists(
-            id=agents_c,
-            partition_key=PartitionKey(path="/agent_id"),
+            id=agents_c, partition_key=agent_pk
         )
         self._sessions = db.create_container_if_not_exists(
-            id=sessions_c,
-            partition_key=PartitionKey(path="/session_id"),
+            id=sessions_c, partition_key=session_pk
         )
         self._audit = db.create_container_if_not_exists(
-            id=audit_c,
-            partition_key=PartitionKey(path="/event_id"),
+            id=audit_c, partition_key=audit_pk
         )
 
     @property

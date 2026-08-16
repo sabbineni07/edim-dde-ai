@@ -192,20 +192,30 @@ def search_corpus(
     search_mode: str = "hybrid",
     filters: dict[str, Any] | None = None,
     dedupe: bool = True,
+    status_boost: bool = True,
 ) -> list[RetrievalHit]:
     """Convenience search using corpus-aware provider resolution.
+
+    Pipeline: provider search → optional metadata post-filter → optional
+    de-dupe → optional status boost → truncate to ``top_k``.
 
     When ``dedupe`` is true (default), drops duplicate ``id`` then duplicate
     action signatures / content hashes so prompts do not repeat the same
     guidance or past action.
 
+    When ``status_boost`` is true (default), adds a small score nudge for
+    ``applied`` / ``accepted`` experience hits (no-op when metadata has no
+    status — e.g. runbooks).
+
     Args:
         query: Search text.
         corpus: Logical corpus name.
-        top_k: Maximum hits to return after optional de-dupe.
+        top_k: Maximum hits to return after optional de-dupe / boost.
         search_mode: ``vector`` | ``keyword`` | ``hybrid``.
-        filters: Optional provider-specific filters.
+        filters: Optional metadata equality filters (post-filter; works for
+            all backends). Prefer over-fetch via ``dedupe`` when filtering.
         dedupe: When true, over-fetch then run ``dedupe_retrieval_hits``.
+        status_boost: When true, prefer accepted/applied outcomes in ranking.
 
     Returns:
         Up to ``top_k`` ranked ``RetrievalHit`` rows.
@@ -216,9 +226,9 @@ def search_corpus(
         ctx = format_hits_as_context(hits)
     """
     provider = provider_for_corpus(corpus)
-    # Over-fetch slightly so de-dupe can still fill top_k
+    # Over-fetch slightly so de-dupe / filters can still fill top_k
     fetch_k = max(1, int(top_k))
-    if dedupe:
+    if dedupe or filters:
         fetch_k = min(max(fetch_k * 3, fetch_k + 5), 50)
     hits = provider.search(
         SearchRequest(
@@ -229,10 +239,18 @@ def search_corpus(
             filters=dict(filters or {}),
         )
     )
+    if filters:
+        from edim_dde_ai.experiences.entity import filter_hits_by_metadata
+
+        hits = filter_hits_by_metadata(hits, filters)
     if dedupe:
         from edim_dde_ai.experiences.dedupe import dedupe_retrieval_hits
 
         hits = dedupe_retrieval_hits(hits)
+    if status_boost:
+        from edim_dde_ai.experiences.ranking import apply_status_boost
+
+        hits = apply_status_boost(hits)
     return hits[: max(1, int(top_k))]
 
 

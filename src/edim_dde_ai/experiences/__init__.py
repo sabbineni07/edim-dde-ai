@@ -15,28 +15,34 @@ How it fits the platform
 * ``RecommendationStore`` remains the system of record (lifecycle / history).
 * ``ExperienceIndexingStore`` wraps store writes so save/status transitions
   also update (or delete) the experience corpus.
-* Graph / agent helpers call ``dedupe_retrieval_hits`` after ``search_corpus``.
+* Graph helpers call ``search_corpus`` (de-dupe + status boost).
+* Phase 2: entity helpers and ``backfill_outcomes_from_store`` for Jobs.
 
 Layers
 ------
-* ``models`` — ``ExperienceDocument``
-* ``protocols`` — ``ExperienceTransform`` strategy interface
-* ``registry`` — transform map + ``ExperienceIndexingStore`` / wrap helper
-* ``indexing`` — status-gated upsert / delete against RetrievalProvider
-* ``dedupe`` — post-search collapse by id and action signature
+* ``models`` / ``protocols`` / ``registry`` / ``indexing`` / ``dedupe``
+* ``ranking`` — status boost for accepted/applied
+* ``entity`` — job-scoped store + filtered experience search
+* ``backfill`` — replay store rows into outcomes corpora
 
 Public API
 ----------
 * ``ExperienceDocument``, transform registry helpers
 * ``maybe_index_experience``, ``upsert_experience_document``, ``indexable_statuses``
-* ``dedupe_retrieval_hits``, ``content_hash``, ``action_signature_from_hit``
+* ``dedupe_retrieval_hits``, ``apply_status_boost``, entity + backfill helpers
 * ``wrap_recommendation_store``, ``ExperienceIndexingStore``
 """
 
+from edim_dde_ai.experiences.backfill import BackfillResult, backfill_outcomes_from_store
 from edim_dde_ai.experiences.dedupe import (
     action_signature_from_hit,
     content_hash,
     dedupe_retrieval_hits,
+)
+from edim_dde_ai.experiences.entity import (
+    filter_hits_by_metadata,
+    list_recommendations_for_job,
+    search_experiences_for_entity,
 )
 from edim_dde_ai.experiences.indexing import (
     indexable_statuses,
@@ -44,6 +50,11 @@ from edim_dde_ai.experiences.indexing import (
     upsert_experience_document,
 )
 from edim_dde_ai.experiences.models import ExperienceDocument
+from edim_dde_ai.experiences.ranking import (
+    DEFAULT_STATUS_BOOST,
+    apply_status_boost,
+    status_boost_for,
+)
 from edim_dde_ai.experiences.registry import (
     ExperienceIndexingStore,
     clear_experience_transforms,
@@ -54,17 +65,25 @@ from edim_dde_ai.experiences.registry import (
 )
 
 __all__ = [
+    "BackfillResult",
+    "DEFAULT_STATUS_BOOST",
     "ExperienceDocument",
     "ExperienceIndexingStore",
     "action_signature_from_hit",
+    "apply_status_boost",
+    "backfill_outcomes_from_store",
     "clear_experience_transforms",
     "content_hash",
     "dedupe_retrieval_hits",
+    "filter_hits_by_metadata",
     "get_experience_transform",
     "indexable_statuses",
     "list_experience_transforms",
+    "list_recommendations_for_job",
     "maybe_index_experience",
     "register_experience_transform",
+    "search_experiences_for_entity",
+    "status_boost_for",
     "upsert_experience_document",
     "wrap_recommendation_store",
 ]

@@ -198,6 +198,9 @@ class AzureAISearchRetrieval:
     ) -> None:
         """Upload one document (``id`` + ``content``/``text`` fields).
 
+        Non-scalar metadata values (lists/dicts) are JSON-stringified so they
+        fit Azure ``Edm.String`` fields (e.g. ``feature_labels``).
+
         Args:
             corpus: Logical corpus → index name.
             doc_id: Document key.
@@ -205,6 +208,8 @@ class AzureAISearchRetrieval:
             metadata: Merged into the document body.
             source: Optional ``source`` field.
         """
+        import json
+
         client = self._client(corpus)
         body: dict[str, Any] = {
             "id": doc_id,
@@ -214,7 +219,15 @@ class AzureAISearchRetrieval:
         if source:
             body["source"] = source
         if metadata:
-            body.update(metadata)
+            for key, value in metadata.items():
+                if value is None:
+                    continue
+                if isinstance(value, (list, dict)):
+                    body[str(key)] = json.dumps(value, default=str)
+                elif isinstance(value, (str, int, float, bool)):
+                    body[str(key)] = value
+                else:
+                    body[str(key)] = str(value)
         client.upload_documents(documents=[body])
 
     def delete(self, *, corpus: str, doc_id: str) -> bool:
