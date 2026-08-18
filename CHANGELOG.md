@@ -1,6 +1,9 @@
 ## Unreleased
 
 ### Added
+- **HITL interrupt / resume**: builtin ``hitl.gate`` node, StateStore ``waiting_hitl``
+  sessions, ``resume_hitl_session()``; nodes before the gate skipped on resume.
+  Demo agent ``hitl_demo``. API: ``POST/GET /api/v1/sessions``, ``POST .../resume``.
 - **Experience index Phase 2**: `apply_status_boost` / `search_corpus(..., status_boost=True)`;
   entity helpers `list_recommendations_for_job`, `search_experiences_for_entity`,
   `filter_hits_by_metadata`; outcomes backfill

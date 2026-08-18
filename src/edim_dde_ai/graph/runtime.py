@@ -47,6 +47,16 @@ class MetadataAgent:
         """Unwrap the ``data`` bag from graph output."""
         return dict((out or {}).get("data") or {})
 
+    def _merge_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Attach observability tags without copying them into agent state."""
+        from edim_dde_ai.observability import get_observability_provider
+
+        return get_observability_provider().merge_invoke_kwargs(self.agent_id, kwargs)
+
+    def _from_paused(self, paused: Any) -> dict[str, Any]:
+        """Return the gate snapshot; ``HitlPaused`` is control flow, not a failure."""
+        return dict(paused.state)
+
     def invoke(self, state: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
         """Synchronously run the graph.
 
@@ -58,10 +68,13 @@ class MetadataAgent:
         Returns:
             Flat metadata dict from the final ``data`` bag.
         """
-        from edim_dde_ai.observability import get_observability_provider
+        from edim_dde_ai.errors import HitlPaused
 
-        kwargs = get_observability_provider().merge_invoke_kwargs(self.agent_id, kwargs)
-        out = self.graph.invoke(self._prepare(state), **kwargs)
+        kwargs = self._merge_kwargs(kwargs)
+        try:
+            out = self.graph.invoke(self._prepare(state), **kwargs)
+        except HitlPaused as paused:
+            return self._from_paused(paused)
         return self._extract(out)
 
     async def ainvoke(
@@ -76,10 +89,13 @@ class MetadataAgent:
         Returns:
             Flat metadata dict from the final ``data`` bag.
         """
-        from edim_dde_ai.observability import get_observability_provider
+        from edim_dde_ai.errors import HitlPaused
 
-        kwargs = get_observability_provider().merge_invoke_kwargs(self.agent_id, kwargs)
-        out = await self.graph.ainvoke(self._prepare(state), **kwargs)
+        kwargs = self._merge_kwargs(kwargs)
+        try:
+            out = await self.graph.ainvoke(self._prepare(state), **kwargs)
+        except HitlPaused as paused:
+            return self._from_paused(paused)
         return self._extract(out)
 
     def __repr__(self) -> str:

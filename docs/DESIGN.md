@@ -24,12 +24,14 @@ Reuse is expressed with a small set of classic patterns — no DI container, Obs
 | Pattern | Where | Role |
 |---------|-------|------|
 | **Registry** (catalog / Singleton scope) | `registry/base.py` → nodes, chains, routers, agents | One keyed catalog per concern; seed + clear/restore for builtins |
-| **Strategy** | Node factories, chain invokers, router factories | Swappable algorithms selected by allowlisted id |
-| **Builder** | `graph/builder.py` (`GraphBuilder`) | Stepwise graph assembly; `build_graph()` remains the public facade |
-| **Factory Method** | `factories/agent.py` (`AgentFactory.create`) | Construct `MetadataAgent` from a registered definition |
+| **Strategy** | Node factories, chain invokers, router factories, `StateStore` backends | Swappable algorithms selected by allowlisted id |
+| **Builder** | `graph/builder.py` (`GraphBuilder`) | Stepwise graph assembly; injects HITL gate config |
+| **Factory Method** | `factories/agent.py` (`AgentFactory.create`); `hitl.gate` factory | Construct `MetadataAgent` / bind node config |
 | **Adapter** | `graph/adapters.py` | Flat metadata callables ↔ LangGraph `AgentState.data` bag |
-| **Template Method** | `graph/runtime.py` (`MetadataAgent`) | Shared `_prepare` / `_extract` for `invoke` and `ainvoke` |
-| **Facade** | `edim_dde_ai` / `api/entrypoints` / registry wrappers | Stable public API over internal structure |
+| **Decorator** | `hitl/decorator.py` (`skip_until_resume`) | Skip nodes before the resume gate without a checkpointer |
+| **Template Method** | `graph/runtime.py` (`MetadataAgent`) | Shared `_prepare` / `_extract` / kwargs merge / `HitlPaused` unwrap |
+| **Facade** | `edim_dde_ai` / `hitl.resume_hitl_session` / `api/entrypoints` | Stable public API over internal structure |
+| **State** | `hitl/sessions.py` (`waiting_hitl` → `closed`) | Session lifecycle for pause / resume |
 
 Light **Protocol** typing for strategies lives in `registry/protocols.py` (documentation/typing only).
 
@@ -45,6 +47,7 @@ edim_dde_ai/
   registry/            # Registry base + agents, nodes, chains, routers
   factories/           # AgentFactory
   graph/               # Builder, adapters, MetadataAgent runtime
+  hitl/                # HITL gate, skip Decorator, session Facade
   nodes/               # builtin node implementations + BUILTIN_NODE_FACTORIES
   observability/       # ObservabilityProvider (langsmith | mlflow | none)
   store/               # StateStore control plane (memory | postgres | cosmos | redis)
@@ -77,7 +80,7 @@ graph.runtime.MetadataAgent  (invoke / ainvoke)
 
 - Backed by `Registry[NodeFactory]` seeded from `nodes.builtin.BUILTIN_NODE_FACTORIES`.
 - `register_node(type_id, factory)` allowlists a node type.
-- Builtin types: `passthrough`, `set_value`, `echo_result`, `llm_chain`, `invoke_agent`, `rag.retrieve`.
+- Builtin types: `passthrough`, `set_value`, `echo_result`, `llm_chain`, `invoke_agent`, `rag.retrieve`, `hitl.gate`.
 - Custom types are registered in application code before loading YAML.
 
 ### Agent registry (`registry/agents.py`)

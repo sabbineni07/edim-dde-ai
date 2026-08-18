@@ -30,6 +30,8 @@ from edim_dde_ai.core.bindings import (
 )
 from edim_dde_ai.core.definition import AgentDefinition
 from edim_dde_ai.graph.adapters import adapt_node, adapt_router
+from edim_dde_ai.hitl.decorator import skip_until_resume
+from edim_dde_ai.hitl.gate import apply_gate_build_config
 from edim_dde_ai.registry.nodes import get_node_factory
 from edim_dde_ai.registry.routers import get_router_factory
 
@@ -72,7 +74,9 @@ class GraphBuilder:
 
         Injects ``agent_id`` into config for prompt/LLM nodes. For
         ``invoke_agent``, preserves YAML target ``agent_id`` and sets
-        ``caller_agent_id`` to the parent.
+        ``caller_agent_id`` to the parent. For ``hitl.gate``, injects node id
+        and ``hitl.enabled``. Every node is wrapped with ``skip_until_resume``
+        (Decorator) before ``adapt_node`` (Adapter).
 
         Returns:
             ``self`` for chaining.
@@ -119,7 +123,11 @@ class GraphBuilder:
                     cfg.setdefault("host", resolved_sql.host)
                 if resolved_sql.http_path:
                     cfg.setdefault("http_path", resolved_sql.http_path)
+            if node.type == "hitl.gate":
+                apply_gate_build_config(cfg, node, self.definition)
             runnable = factory(cfg)
+            # Decorator (flat state) then Adapter (LangGraph data bag).
+            runnable = skip_until_resume(node.id, runnable)
             self._builder.add_node(node.id, adapt_node(runnable))
         return self
 

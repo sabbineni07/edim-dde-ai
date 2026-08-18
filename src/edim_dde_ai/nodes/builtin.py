@@ -15,6 +15,7 @@ Public API:
   - ``invoke_agent_factory`` — nested agent call with depth guards
   - ``rag_retrieve_factory`` — corpus search via RetrievalProvider
   - ``web_search_factory`` — opt-in bounded public-web search
+  - ``hitl_gate_factory`` — pause for human approval (StateStore session)
   - ``BUILTIN_NODE_FACTORIES`` — type_id → factory map (seeds the node registry)
 """
 
@@ -28,6 +29,7 @@ from typing import Any
 from edim_dde_ai.content.messages import build_chat_messages
 from edim_dde_ai.content.registry import get_llm_provider
 from edim_dde_ai.errors import ChainInvokerError
+from edim_dde_ai.hitl.gate import hitl_gate_factory
 from edim_dde_ai.registry.chains import get_chain_invoker, list_chain_invokers
 
 _TEMPLATE_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -479,6 +481,8 @@ def web_search_factory(config: dict[str, Any]):
 
 
 # Single source of truth for builtin type_id → factory (seeded into the node registry).
+# ``hitl.gate`` lives in ``edim_dde_ai.hitl.gate``; re-exported here so the registry
+# seed stays one map.
 BUILTIN_NODE_FACTORIES = {
     "passthrough": passthrough_factory,
     "set_value": set_value_factory,
@@ -487,4 +491,5 @@ BUILTIN_NODE_FACTORIES = {
     "invoke_agent": invoke_agent_factory,
     "rag.retrieve": rag_retrieve_factory,
     "web.search": web_search_factory,
+    "hitl.gate": hitl_gate_factory,
 }

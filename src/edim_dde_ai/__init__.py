@@ -71,6 +71,7 @@ from edim_dde_ai.registry.agents import (
 )
 from edim_dde_ai.registry.nodes import register_node
 from edim_dde_ai.version import __version__
+from edim_dde_ai.hitl import resume_hitl_session
 
 # Register builtin node types on import
 from edim_dde_ai import nodes as _nodes  # noqa: F401
@@ -117,4 +118,5 @@ __all__ = [
     "set_web_search_provider",
     "get_web_search_provider",
     "configure_web_search_from_env",
+    "resume_hitl_session",
 ]

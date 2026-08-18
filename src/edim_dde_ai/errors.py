@@ -13,6 +13,9 @@ Public API:
 
 ``RouterRegistryError`` covers unknown routers and invalid router config
 (for example missing ``field`` for ``field_truthy``).
+
+``HitlPaused`` is control flow (not a failure): a ``hitl.gate`` stopped the
+graph for human approval. ``HitlError`` is an invalid session or decision.
 """
 
 
@@ -46,3 +49,30 @@ class RouterRegistryError(FoundationError):
 
 class ContentError(FoundationError):
     """Missing or invalid prompts, skills, or content provider configuration."""
+
+
+class HitlPaused(Exception):
+    """Graph stopped at a HITL gate pending human approval (not a failure).
+
+    Attributes:
+        session_id: Persisted StateStore session key.
+        agent_id: Agent that paused.
+        state: Flat metadata snapshot at the gate (includes ``hitl_status``).
+    """
+
+    def __init__(
+        self,
+        session_id: str,
+        agent_id: str,
+        state: dict,
+    ) -> None:
+        self.session_id = session_id
+        self.agent_id = agent_id
+        self.state = state
+        super().__init__(
+            f"HITL pause session_id={session_id!r} agent_id={agent_id!r}"
+        )
+
+
+class HitlError(FoundationError):
+    """Invalid HITL session, status, or decision (resume rejected)."""
