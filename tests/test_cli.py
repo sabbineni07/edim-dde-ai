@@ -90,6 +90,17 @@ def test_cli_run_unknown_agent_lists_available(capsys):
     assert "Available" in err
 
 
+def test_cli_run_yaml_loads_remembered_child(capsys):
+    """Nested invoke: register child, then ``run --yaml`` parent in a new process."""
+    child = str(EXAMPLES / "invoke_agent_child.agent.yaml")
+    parent = str(EXAMPLES / "invoke_agent_parent.agent.yaml")
+    assert main(["register", child]) == 0
+    capsys.readouterr()
+    assert main(["run", "invoke_parent_demo", "--yaml", parent, "--input", "{}"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data.get("child_greeting") == "hello-world"
+
+
 def test_cli_register_dir(capsys):
     assert main(["register-dir", str(EXAMPLES)]) == 0
     out = capsys.readouterr().out

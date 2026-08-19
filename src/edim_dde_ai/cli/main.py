@@ -127,6 +127,9 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    # Always reload remembered YAML first so ``run --yaml parent.yaml`` still
+    # sees previously registered children (nested ``invoke_agent``).
+    load_remembered_into_registry(overwrite=True)
     if args.yaml:
         yaml_path = Path(args.yaml)
         if not yaml_path.is_file():
@@ -134,8 +137,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
             return 2
         register_from_yaml(yaml_path, overwrite=True)
         remember_paths([yaml_path.resolve()])
-    else:
-        load_remembered_into_registry(overwrite=True)
 
     available = list_agents()
     if args.agent_id not in available:
