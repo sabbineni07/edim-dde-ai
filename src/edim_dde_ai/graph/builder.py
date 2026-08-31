@@ -7,8 +7,10 @@ Business purpose:
 
 Public API:
   - ``AgentState`` — TypedDict with shallow-merged ``data`` channel
+  - ``FlatAgentState`` — reducer-backed flat mapping for host adapters
   - ``GraphBuilder`` — incremental builder (add_nodes → edges → compile)
   - ``build_graph(definition)`` — one-shot compile facade
+  - ``build_flat_graph(definition)`` — compile a graph with flat dict state
 
 Router factories are invoked with ``cond.config`` at build time::
 
@@ -52,6 +54,9 @@ class AgentState(TypedDict):
     data: Annotated[dict[str, Any], _merge_dicts]
 
 
+FlatAgentState = Annotated[dict[str, Any], _merge_dicts]
+
+
 def _map_target(target: str):
     """Map YAML ``END`` sentinel to LangGraph ``END``; leave node ids as-is."""
     return END if target == "END" else target
@@ -65,9 +70,17 @@ class GraphBuilder:
         GraphBuilder(defn).add_nodes().set_entry().add_edges().add_conditional_edges().compile()
     """
 
-    def __init__(self, definition: AgentDefinition) -> None:
+    def __init__(
+        self,
+        definition: AgentDefinition,
+        *,
+        flat_state: bool = False,
+    ) -> None:
         self.definition = definition
-        self._builder: StateGraph = StateGraph(AgentState)
+        self.flat_state = flat_state
+        self._builder: StateGraph = StateGraph(
+            FlatAgentState if flat_state else AgentState
+        )
 
     def add_nodes(self) -> GraphBuilder:
         """Register each definition node via its factory + ``adapt_node``.
@@ -126,9 +139,12 @@ class GraphBuilder:
             if node.type == "hitl.gate":
                 apply_gate_build_config(cfg, node, self.definition)
             runnable = factory(cfg)
-            # Decorator (flat state) then Adapter (LangGraph data bag).
+            # Decorator (flat state) then optional Adapter (LangGraph data bag).
             runnable = skip_until_resume(node.id, runnable)
-            self._builder.add_node(node.id, adapt_node(runnable))
+            self._builder.add_node(
+                node.id,
+                runnable if self.flat_state else adapt_node(runnable),
+            )
         return self
 
     def set_entry(self) -> GraphBuilder:
@@ -164,7 +180,9 @@ class GraphBuilder:
             router_fn = factory(dict(cond.config))
             mapping = {k: _map_target(v) for k, v in cond.mapping.items()}
             self._builder.add_conditional_edges(
-                cond.source, adapt_router(router_fn), mapping
+                cond.source,
+                router_fn if self.flat_state else adapt_router(router_fn),
+                mapping,
             )
         return self
 
@@ -188,6 +206,31 @@ def build_graph(definition: AgentDefinition):
     """
     return (
         GraphBuilder(definition)
+        .add_nodes()
+        .set_entry()
+        .add_edges()
+        .add_conditional_edges()
+        .compile()
+    )
+
+
+def build_flat_graph(definition: AgentDefinition):
+    """Compile a graph whose public state is a flat mapping.
+
+    This mode is intended for host adapters such as LangGraph Agent Server,
+    where the external request and response contract should remain the same as
+    the framework's product-facing ``MetadataAgent`` facade. Node and router
+    callables still receive flat dictionaries; the internal ``data`` bag
+    adapter is simply omitted.
+
+    Args:
+        definition: Validated agent definition.
+
+    Returns:
+        Compiled LangGraph runnable accepting and returning flat dictionaries.
+    """
+    return (
+        GraphBuilder(definition, flat_state=True)
         .add_nodes()
         .set_entry()
         .add_edges()
