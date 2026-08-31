@@ -9,7 +9,7 @@ Public API:
   - ``DefinitionError`` / ``LoaderError``
   - ``NodeRegistryError`` / ``AgentRegistryError`` / ``ChainInvokerError`` /
     ``RouterRegistryError``
-  - ``ContentError``
+  - ``ContentError`` / ``ConversationMemoryDisabledError``
 
 ``RouterRegistryError`` covers unknown routers and invalid router config
 (for example missing ``field`` for ``field_truthy``).
@@ -49,6 +49,10 @@ class RouterRegistryError(FoundationError):
 
 class ContentError(FoundationError):
     """Missing or invalid prompts, skills, or content provider configuration."""
+
+
+class ConversationMemoryDisabledError(FoundationError):
+    """Conversation context was requested for an agent without memory enabled."""
 
 
 class HitlPaused(Exception):

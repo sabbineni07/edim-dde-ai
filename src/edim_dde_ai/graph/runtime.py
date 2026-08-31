@@ -38,10 +38,15 @@ class MetadataAgent:
         self.definition = definition
         self.graph = compiled_graph
         self.agent_id = definition.agent_id
+        from edim_dde_ai.memory import ConversationMemoryManager, get_memory_policy
+
+        self.memory = ConversationMemoryManager(
+            get_memory_policy(definition), agent_id=self.agent_id
+        )
 
     def _prepare(self, state: dict[str, Any] | None) -> dict[str, Any]:
         """Wrap flat caller state into LangGraph ``AgentState``."""
-        return {"data": dict(state or {})}
+        return {"data": self.memory.prepare(dict(state or {}))}
 
     def _extract(self, out: dict[str, Any] | None) -> dict[str, Any]:
         """Unwrap the ``data`` bag from graph output."""
@@ -71,11 +76,15 @@ class MetadataAgent:
         from edim_dde_ai.errors import HitlPaused
 
         kwargs = self._merge_kwargs(kwargs)
+        prepared = self.memory.prepare(dict(state or {}))
         try:
-            out = self.graph.invoke(self._prepare(state), **kwargs)
+            out = self.graph.invoke({"data": prepared}, **kwargs)
         except HitlPaused as paused:
-            return self._from_paused(paused)
-        return self._extract(out)
+            final = self._from_paused(paused)
+        else:
+            final = self._extract(out)
+        self.memory.record_response(prepared, final)
+        return final
 
     async def ainvoke(
         self, state: dict[str, Any] | None = None, **kwargs: Any
@@ -92,11 +101,15 @@ class MetadataAgent:
         from edim_dde_ai.errors import HitlPaused
 
         kwargs = self._merge_kwargs(kwargs)
+        prepared = self.memory.prepare(dict(state or {}))
         try:
-            out = await self.graph.ainvoke(self._prepare(state), **kwargs)
+            out = await self.graph.ainvoke({"data": prepared}, **kwargs)
         except HitlPaused as paused:
-            return self._from_paused(paused)
-        return self._extract(out)
+            final = self._from_paused(paused)
+        else:
+            final = self._extract(out)
+        self.memory.record_response(prepared, final)
+        return final
 
     def __repr__(self) -> str:
         return f"MetadataAgent(agent_id={self.agent_id!r})"

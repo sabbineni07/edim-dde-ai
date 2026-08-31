@@ -75,7 +75,7 @@ def validate_extended_blocks(data: dict[str, Any]) -> None:
     if tools is not None and not isinstance(tools, list):
         raise DefinitionError("tools must be a list when present")
 
-    for key in ("rag", "security", "evaluation", "hitl"):
+    for key in ("rag", "security", "evaluation", "hitl", "memory"):
         block = data.get(key)
         if block is None:
             continue
@@ -107,6 +107,12 @@ def validate_extended_blocks(data: dict[str, Any]) -> None:
     if isinstance(hitl, dict) and "enabled" in hitl:
         if not isinstance(hitl["enabled"], bool):
             raise DefinitionError("hitl.enabled must be a boolean")
+
+    memory = data.get("memory")
+    if memory is not None:
+        from edim_dde_ai.memory.models import MemoryPolicy
+
+        MemoryPolicy.from_raw(memory)
 
 
 def validate_agent_dict(data: dict[str, Any], *, use_jsonschema: bool = False) -> None:

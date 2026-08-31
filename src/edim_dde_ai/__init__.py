@@ -43,6 +43,11 @@ from edim_dde_ai.store import (
     set_state_store,
     sync_registered_agents_to_store,
 )
+from edim_dde_ai.memory import (
+    configure_conversation_store_from_env,
+    get_conversation_store,
+    set_conversation_store,
+)
 from edim_dde_ai.recommendations import (
     configure_recommendation_store_from_env,
     get_recommendation_store,
@@ -106,6 +111,9 @@ __all__ = [
     "get_state_store",
     "configure_state_store_from_env",
     "sync_registered_agents_to_store",
+    "set_conversation_store",
+    "get_conversation_store",
+    "configure_conversation_store_from_env",
     "set_recommendation_store",
     "get_recommendation_store",
     "configure_recommendation_store_from_env",
