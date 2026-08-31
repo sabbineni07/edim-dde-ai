@@ -182,6 +182,27 @@
       },
       "additionalProperties": true
     },
+    "memory": {
+      "type": ["object", "null"],
+      "description": "Conversation memory policy; omitted or null disables conversation memory.",
+      "properties": {
+        "strategy": {
+          "enum": ["none", "window", "summary", "summary_buffer", "vector"]
+        },
+        "k": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "turns": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "max_tokens": { "type": "integer", "minimum": 1, "maximum": 128000 },
+        "max_chars": { "type": "integer", "minimum": 1000, "maximum": 512000 },
+        "store": { "type": "string", "minLength": 1 },
+        "include_tool_messages": { "type": "boolean" },
+        "summary_trigger_tokens": { "type": "integer", "minimum": 1 },
+        "summary_max_tokens": { "type": "integer", "minimum": 1 },
+        "top_k": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "similarity_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "corpus": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
     "graph": {
       "type": "object",
       "required": ["nodes"],
