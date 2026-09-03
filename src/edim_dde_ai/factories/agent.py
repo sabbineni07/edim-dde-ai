@@ -19,7 +19,7 @@ Example::
 
 from __future__ import annotations
 
-from edim_dde_ai.graph.builder import build_graph
+from edim_dde_ai.graph.session_builder import build_graph_for_definition
 from edim_dde_ai.graph.runtime import MetadataAgent
 from edim_dde_ai.registry.agents import get_agent_definition
 
@@ -41,5 +41,5 @@ class AgentFactory:
             AgentRegistryError: If ``agent_id`` is unknown.
         """
         definition = get_agent_definition(agent_id)
-        graph = build_graph(definition)
+        graph = build_graph_for_definition(definition)
         return MetadataAgent(definition, graph)

@@ -1,0 +1,45 @@
+agent_id: session_demo
+display_name: Session Demo
+version: 1
+entry:
+  method: invoke
+  sync: true
+
+memory:
+  strategy: window
+  k: 3
+  max_tokens: 2000
+  max_chars: 4000
+
+session:
+  initialize_entry: init_step
+  converse_entry: converse
+  regenerate_entry: regenerate
+  regenerate_phrases:
+    - cheaper
+    - regenerate
+
+graph:
+  nodes:
+    - id: init_step
+      type: set_value
+      field: prepared
+      value: "yes"
+    - id: recommend
+      type: set_value
+      field: recommendation
+      value: "rec-v1"
+    - id: converse
+      type: set_value
+      field: explanation
+      value: "because metrics"
+    - id: regenerate
+      type: set_value
+      field: recommendation
+      value: "rec-v2"
+  edges:
+    - [START, init_step]
+    - [init_step, recommend]
+    - [recommend, END]
+    - [converse, END]
+    - [regenerate, END]

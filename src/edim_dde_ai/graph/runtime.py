@@ -1,9 +1,9 @@
 """Runtime wrapper around a compiled LangGraph agent.
 
 Business purpose:
-  Product-facing invoke surface: callers pass and receive flat dicts. Internally
-  the graph uses an open ``data`` bag so arbitrary metadata keys survive node
-  merges. Observability providers enrich kwargs before each invoke.
+  Product-facing invoke surface: callers pass and receive flat dicts. Session
+  agents compile with LangGraph checkpoints and route initialize / converse /
+  regenerate paths; single-turn agents use a flat graph without checkpoints.
 
 Public API:
   - ``MetadataAgent`` — ``invoke`` / ``ainvoke`` over a compiled graph
@@ -15,100 +15,130 @@ Example::
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from edim_dde_ai.core.definition import AgentDefinition
+from edim_dde_ai.errors import ConversationMemoryDisabledError, HitlPaused
+from edim_dde_ai.session.messages import append_message, assistant_text_from_final, normalize_messages
+from edim_dde_ai.session.policy import SessionPolicy, get_session_policy
+from edim_dde_ai.session.router import SESSION_MODE_INITIALIZE, extract_user_message
 
 
 class MetadataAgent:
-    """Thin invoke/ainvoke facade over a compiled graph.
+    """Thin invoke/ainvoke facade over a compiled flat-state graph."""
 
-    Public API uses a flat dict state; internally the graph stores an open
-    ``data`` bag so arbitrary metadata keys are preserved across nodes.
-
-    ``invoke`` / ``ainvoke`` share Template Method steps ``_prepare`` / ``_extract``.
-
-    Attributes:
-        definition: Source ``AgentDefinition``.
-        graph: Compiled LangGraph runnable.
-        agent_id: Convenience mirror of ``definition.agent_id``.
-    """
-
-    def __init__(self, definition: AgentDefinition, compiled_graph: Any) -> None:
+    def __init__(
+        self,
+        definition: AgentDefinition,
+        compiled_graph: Any,
+        *,
+        policy: SessionPolicy | None = None,
+    ) -> None:
         self.definition = definition
         self.graph = compiled_graph
         self.agent_id = definition.agent_id
-        from edim_dde_ai.memory import ConversationMemoryManager, get_memory_policy
-
-        self.memory = ConversationMemoryManager(
-            get_memory_policy(definition), agent_id=self.agent_id
-        )
-
-    def _prepare(self, state: dict[str, Any] | None) -> dict[str, Any]:
-        """Wrap flat caller state into LangGraph ``AgentState``."""
-        return {"data": self.memory.prepare(dict(state or {}))}
-
-    def _extract(self, out: dict[str, Any] | None) -> dict[str, Any]:
-        """Unwrap the ``data`` bag from graph output."""
-        return dict((out or {}).get("data") or {})
+        self.policy = policy or get_session_policy(definition)
 
     def _merge_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Attach observability tags without copying them into agent state."""
         from edim_dde_ai.observability import get_observability_provider
 
         return get_observability_provider().merge_invoke_kwargs(self.agent_id, kwargs)
 
-    def _from_paused(self, paused: Any) -> dict[str, Any]:
-        """Return the gate snapshot; ``HitlPaused`` is control flow, not a failure."""
-        return dict(paused.state)
+    @staticmethod
+    def _thread_id(state: dict[str, Any], kwargs: dict[str, Any]) -> str:
+        config = kwargs.get("config") or {}
+        configurable = config.get("configurable") or {}
+        for key in ("thread_id", "conversation_id"):
+            value = str(configurable.get(key) or state.get(key) or "").strip()
+            if value:
+                return value
+        return ""
+
+    def _validate_follow_up(self, state: dict[str, Any], kwargs: dict[str, Any]) -> None:
+        if self.policy.enabled:
+            return
+        thread_id = self._thread_id(state, kwargs)
+        if thread_id:
+            raise ConversationMemoryDisabledError(
+                "Conversational memory is disabled for this agent; "
+                "configure memory.strategy or remove thread_id/conversation_id"
+            )
+
+    def _ensure_thread_config(
+        self, state: dict[str, Any], kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
+        merged = dict(kwargs)
+        if not self.policy.enabled:
+            return merged
+        config = dict(merged.get("config") or {})
+        configurable = dict(config.get("configurable") or {})
+        thread_id = self._thread_id(state, merged) or str(uuid.uuid4())
+        configurable.setdefault("thread_id", thread_id)
+        config["configurable"] = configurable
+        merged["config"] = config
+        return merged
+
+    def _record_assistant_turn(
+        self,
+        *,
+        config: dict[str, Any],
+        final: dict[str, Any],
+        mode: str,
+    ) -> None:
+        if not self.policy.enabled:
+            return
+        content = assistant_text_from_final(final)
+        if not content:
+            return
+        current = normalize_messages(final.get("messages"))
+        updates: dict[str, Any] = {
+            "messages": append_message(current, role="assistant", content=content),
+        }
+        if mode == SESSION_MODE_INITIALIZE:
+            updates["session_initialized"] = True
+        try:
+            self.graph.update_state(config, updates)
+        except Exception:  # noqa: BLE001 — checkpoint write is best-effort
+            return
+        final.update(updates)
 
     def invoke(self, state: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
-        """Synchronously run the graph.
-
-        Args:
-            state: Flat metadata input (default empty).
-            **kwargs: Forwarded to LangGraph after observability merge
-                (e.g. ``config=...``).
-
-        Returns:
-            Flat metadata dict from the final ``data`` bag.
-        """
-        from edim_dde_ai.errors import HitlPaused
-
-        kwargs = self._merge_kwargs(kwargs)
-        prepared = self.memory.prepare(dict(state or {}))
+        payload = dict(state or {})
+        self._validate_follow_up(payload, kwargs)
+        kwargs = self._ensure_thread_config(payload, self._merge_kwargs(kwargs))
+        config = kwargs.get("config") or {}
         try:
-            out = self.graph.invoke({"data": prepared}, **kwargs)
+            out = self.graph.invoke(payload, **kwargs)
         except HitlPaused as paused:
-            final = self._from_paused(paused)
-        else:
-            final = self._extract(out)
-        self.memory.record_response(prepared, final)
+            return dict(paused.state)
+        final = dict(out or {})
+        mode = str(final.get("session_mode") or SESSION_MODE_INITIALIZE)
+        self._record_assistant_turn(config=config, final=final, mode=mode)
+        thread_id = self._thread_id(payload, kwargs)
+        if thread_id:
+            final.setdefault("thread_id", thread_id)
+            final.setdefault("conversation_id", thread_id)
         return final
 
     async def ainvoke(
         self, state: dict[str, Any] | None = None, **kwargs: Any
     ) -> dict[str, Any]:
-        """Async variant of ``invoke``.
-
-        Args:
-            state: Flat metadata input (default empty).
-            **kwargs: Forwarded to LangGraph after observability merge.
-
-        Returns:
-            Flat metadata dict from the final ``data`` bag.
-        """
-        from edim_dde_ai.errors import HitlPaused
-
-        kwargs = self._merge_kwargs(kwargs)
-        prepared = self.memory.prepare(dict(state or {}))
+        payload = dict(state or {})
+        self._validate_follow_up(payload, kwargs)
+        kwargs = self._ensure_thread_config(payload, self._merge_kwargs(kwargs))
+        config = kwargs.get("config") or {}
         try:
-            out = await self.graph.ainvoke({"data": prepared}, **kwargs)
+            out = await self.graph.ainvoke(payload, **kwargs)
         except HitlPaused as paused:
-            final = self._from_paused(paused)
-        else:
-            final = self._extract(out)
-        self.memory.record_response(prepared, final)
+            return dict(paused.state)
+        final = dict(out or {})
+        mode = str(final.get("session_mode") or SESSION_MODE_INITIALIZE)
+        self._record_assistant_turn(config=config, final=final, mode=mode)
+        thread_id = self._thread_id(payload, kwargs)
+        if thread_id:
+            final.setdefault("thread_id", thread_id)
+            final.setdefault("conversation_id", thread_id)
         return final
 
     def __repr__(self) -> str:

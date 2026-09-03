@@ -1,30 +1,4 @@
-"""In-process agent definition registry and factory facade.
-
-Business purpose:
-  Store parsed ``AgentDefinition`` objects by ``agent_id`` and compile them into
-  cached ``MetadataAgent`` instances. Overwrite is allowed by default so CLI/API
-  reloads are easy; pass ``overwrite=False`` to forbid.
-
-Public API:
-  - ``register_agent(definition, *, overwrite=False)``
-  - ``get_agent_definition(agent_id)``
-  - ``list_agents()``
-  - ``create_agent(agent_id)`` — cached compile
-  - ``clear_agent_cache()`` / ``clear_agent_registry()``
-
-``create_agent(agent_id)`` returns a cached ``MetadataAgent`` (compiled once
-per registration). Re-registering or ``clear_agent_registry`` invalidates the
-cache for that id / all ids.
-
-Example::
-
-    from edim_dde_ai.registry.agents import register_agent, create_agent
-    from edim_dde_ai.core.loader import load_yaml
-
-    register_agent(load_yaml("demo.agent.yaml"))
-    agent = create_agent("demo")
-    agent.invoke({"x": 1})
-"""
+"""In-process agent definition registry and factory facade."""
 
 from __future__ import annotations
 
@@ -46,22 +20,7 @@ _CACHE_LOCK = threading.Lock()
 
 
 def register_agent(definition: AgentDefinition, *, overwrite: bool = False) -> str:
-    """Register an AgentDefinition. Returns agent_id.
-
-    When the definition ``raw`` includes ``prompts`` / ``skills`` or
-    ``content_dir``, content is merged into the process-wide ContentHub
-    (inline store and/or per-agent directory roots).
-
-    Invalidates any previously compiled agent for this ``agent_id``.
-
-    Args:
-        definition: Validated agent definition.
-        overwrite: When False (default), refuse an existing ``agent_id``;
-            pass True to replace (CLI/API reloads typically use True).
-
-    Returns:
-        The registered ``agent_id``.
-    """
+    """Register an AgentDefinition. Returns agent_id."""
     agent_id = definition.agent_id
     _REGISTRY.register(agent_id, definition, overwrite=overwrite)
     with _CACHE_LOCK:
@@ -79,17 +38,7 @@ def register_agent(definition: AgentDefinition, *, overwrite: bool = False) -> s
 
 
 def get_agent_definition(agent_id: str) -> AgentDefinition:
-    """Return the registered definition for ``agent_id``.
-
-    Args:
-        agent_id: Agent id.
-
-    Returns:
-        ``AgentDefinition``.
-
-    Raises:
-        AgentRegistryError: If unknown.
-    """
+    """Return the registered definition for ``agent_id``."""
     try:
         return _REGISTRY.get(agent_id)
     except AgentRegistryError as exc:
@@ -102,14 +51,7 @@ def list_agents() -> list[str]:
 
 
 def create_agent(agent_id: str) -> MetadataAgent:
-    """Return a compiled MetadataAgent for ``agent_id`` (cached after first build).
-
-    Args:
-        agent_id: Registered agent id.
-
-    Returns:
-        Cached ``MetadataAgent`` (thread-safe compile-once).
-    """
+    """Return a compiled MetadataAgent for ``agent_id`` (cached after first build)."""
     with _CACHE_LOCK:
         cached = _CACHE.get(agent_id)
         if cached is not None:
