@@ -110,11 +110,23 @@ def create_observability_provider(
     raise ValueError(f"Unknown observability backend {resolved!r}")
 
 
+def disable_langchain_tracing() -> None:
+    """Stop LangChain/LangSmith SDK from emitting traces when observability is off.
+
+    Hosts often load ``LANGCHAIN_TRACING_V2=true`` from a shared ``.env``. When
+    ``EDIM_OBSERVABILITY=none``, clear that flag so local Docker does not attempt
+    unreachable LangSmith endpoints.
+    """
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+    os.environ["LANGCHAIN_TRACING"] = "false"
+
+
 def configure_observability_from_env(**kwargs: Any) -> ObservabilityProvider:
     """Create provider from ``EDIM_OBSERVABILITY`` (or auto) and install it.
 
     For LangSmith, defaults ``ensure_env=True`` so ``LANGCHAIN_TRACING_V2`` is
-    set when unset (API key + project still required for SaaS).
+    set when unset (API key + project still required for SaaS). When the
+    resolved backend is ``none``, tracing env flags are forced off.
 
     Args:
         **kwargs: Forwarded to the backend constructor.
@@ -123,7 +135,9 @@ def configure_observability_from_env(**kwargs: Any) -> ObservabilityProvider:
         The installed provider.
     """
     resolved = resolve_observability_name(None)
-    if resolved == "langsmith":
+    if resolved == "none":
+        disable_langchain_tracing()
+    elif resolved == "langsmith":
         kwargs.setdefault("ensure_env", True)
     provider = create_observability_provider(resolved, **kwargs)
     set_observability_provider(provider)

@@ -11,7 +11,8 @@ Public API:
   - ``tracing_enabled``
   - ``set_observability_provider`` / ``get_observability_provider`` /
     ``clear_observability_provider`` / ``create_observability_provider`` /
-    ``configure_observability_from_env`` / ``resolve_observability_name``
+    ``configure_observability_from_env`` / ``disable_langchain_tracing`` /
+    ``resolve_observability_name``
 """
 
 from edim_dde_ai.observability.base import build_run_config, merge_base_config
@@ -25,6 +26,7 @@ from edim_dde_ai.observability.protocols import ObservabilityProvider
 from edim_dde_ai.observability.registry import (
     clear_observability_provider,
     configure_observability_from_env,
+    disable_langchain_tracing,
     create_observability_provider,
     get_observability_provider,
     resolve_observability_name,
@@ -44,6 +46,7 @@ __all__ = [
     "clear_observability_provider",
     "create_observability_provider",
     "configure_observability_from_env",
+    "disable_langchain_tracing",
     "resolve_observability_name",
 ]
 
