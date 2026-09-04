@@ -105,6 +105,65 @@ def test_resolve_session_mode_paths():
     )
 
 
+def test_resolve_checkpointer_name():
+    from edim_dde_ai.session import resolve_checkpointer_name
+
+    assert resolve_checkpointer_name("memory") == "memory"
+    assert resolve_checkpointer_name("pg") == "postgres"
+    assert resolve_checkpointer_name("postgresql") == "postgres"
+    with pytest.raises(ValueError):
+        resolve_checkpointer_name("redis")
+
+
+def test_postgres_checkpointer_roundtrip(monkeypatch):
+    """Optional live Postgres: skip when DSN/deps unavailable."""
+    import os
+
+    dsn = os.environ.get("EDIM_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if not dsn:
+        pytest.skip("EDIM_DATABASE_URL not set")
+    try:
+        import psycopg_pool  # noqa: F401
+        from langgraph.checkpoint.postgres import PostgresSaver  # noqa: F401
+    except ImportError:
+        pytest.skip("postgres checkpointer deps not installed")
+
+    from edim_dde_ai import register_from_yaml
+    from edim_dde_ai.registry.agents import clear_agent_cache
+    from edim_dde_ai.session import (
+        clear_checkpointer,
+        configure_checkpointer_from_env,
+        resolve_checkpointer_name,
+    )
+
+    monkeypatch.setenv("EDIM_CHECKPOINTER", "postgres")
+    clear_checkpointer()
+    try:
+        configure_checkpointer_from_env()
+        assert resolve_checkpointer_name() == "postgres"
+
+        register_from_yaml(EXAMPLES / "session_demo.agent.yaml")
+        agent = create_agent("session_demo")
+        first = agent.invoke({"user_message": "recommend"})
+        thread_id = first["thread_id"]
+        assert first["session_mode"] == SESSION_MODE_INITIALIZE
+
+        # Simulate process restart: reconfigure checkpointer against same DSN
+        clear_agent_cache()
+        clear_checkpointer()
+        configure_checkpointer_from_env()
+        agent2 = create_agent("session_demo")
+        second = agent2.invoke(
+            {"thread_id": thread_id, "user_message": "why?"},
+            config={"configurable": {"thread_id": thread_id}},
+        )
+        assert second["session_mode"] == SESSION_MODE_CONVERSE
+        assert second["explanation"] == "because metrics"
+    finally:
+        clear_agent_cache()
+        clear_checkpointer()
+
+
 def test_session_demo_initialize_then_converse_and_regenerate():
     from edim_dde_ai import register_from_yaml
 

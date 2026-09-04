@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from statistics import correlation
-
 import pytest
 
 from edim_dde_ai.api.entrypoints import register_from_dict
