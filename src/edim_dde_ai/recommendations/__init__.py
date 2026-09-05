@@ -37,6 +37,10 @@ from edim_dde_ai.recommendations.models import (
     new_recommendation_id,
 )
 from edim_dde_ai.recommendations.none_store import NoneRecommendationStore
+from edim_dde_ai.recommendations.outcome import (
+    get_recommendation_for_agent,
+    merge_outcome_extra,
+)
 from edim_dde_ai.recommendations.protocols import RecommendationStore
 from edim_dde_ai.recommendations.registry import (
     clear_recommendation_store,
@@ -54,6 +58,8 @@ __all__ = [
     "new_recommendation_id",
     "NoneRecommendationStore",
     "MemoryRecommendationStore",
+    "get_recommendation_for_agent",
+    "merge_outcome_extra",
     "set_recommendation_store",
     "get_recommendation_store",
     "clear_recommendation_store",

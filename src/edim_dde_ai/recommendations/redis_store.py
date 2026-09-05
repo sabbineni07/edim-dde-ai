@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any, Mapping
 
 from edim_dde_ai.recommendations.models import RecommendationRecord
 from edim_dde_ai.recommendations.support import (
@@ -102,23 +103,13 @@ class RedisRecommendationStore(RecommendationStatusMixin):
     def list(
         self,
         *,
-        job_id: str | None = None,
-        cluster_id: str | None = None,
-        status: str | None = None,
         agent_id: str | None = None,
+        status: str | None = None,
+        subjects: Mapping[str, Any] | None = None,
         limit: int = 50,
     ) -> list[RecommendationRecord]:
-        """List newest-first; ZSET path when unfiltered, else scan + filter.
-
-        Args:
-            job_id / cluster_id / status / agent_id: Exact filters when set.
-            limit: Max rows.
-
-        Returns:
-            Filtered records sorted by ``created_at`` descending.
-        """
-        # Prefer ZSET order when no filters; otherwise scan + filter.
-        if job_id is None and cluster_id is None and status is None and agent_id is None:
+        """List newest-first; ZSET path when unfiltered, else scan + filter."""
+        if not subjects and status is None and agent_id is None:
             ids = self._r.zrevrange(self._k("index"), 0, max(0, limit - 1))
             rows: list[RecommendationRecord] = []
             for rid in ids:
@@ -135,8 +126,7 @@ class RedisRecommendationStore(RecommendationStatusMixin):
                 rows.append(RecommendationRecord.from_dict(json.loads(raw)))
         return filter_recommendation_rows(
             rows,
-            job_id=job_id,
-            cluster_id=cluster_id,
+            subjects=subjects,
             status=status,
             agent_id=agent_id,
             limit=limit,

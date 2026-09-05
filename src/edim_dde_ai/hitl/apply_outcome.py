@@ -8,9 +8,9 @@ work (e.g. rebuild a comparison view) can keep a domain node instead.
 
 Config
 ------
-* ``explain_field`` — state key; when truthy and not rejected → ``hitl_next=explain``
-* ``rejected_next`` / ``approved_next`` — override ``hitl_next`` labels (default
-  ``end`` / ``explain``-or-``end``)
+* ``explain_field`` — optional state key; when truthy and not rejected →
+  ``hitl_next=explain`` (omit to skip explain branching)
+* ``rejected_next`` / ``approved_next`` — override ``hitl_next`` labels
 """
 
 from __future__ import annotations
@@ -22,12 +22,12 @@ def hitl_apply_outcome_factory(config: dict[str, Any]):
     """Mark HITL outcome on state after the gate continues.
 
     Args:
-        config: Optional ``explain_field`` (default ``include_explanation``).
+        config: Optional ``explain_field``, ``rejected_next``, ``approved_next``.
 
     Returns:
         Node ``(state) -> partial`` with ``hitl_outcome``, ``status``, ``hitl_next``.
     """
-    explain_field = str(config.get("explain_field") or "include_explanation")
+    explain_field = str(config.get("explain_field") or "").strip()
     rejected_next = str(config.get("rejected_next") or "end")
     approved_next = config.get("approved_next")  # None → derive from explain_field
 
@@ -39,7 +39,7 @@ def hitl_apply_outcome_factory(config: dict[str, Any]):
                 "status": "rejected",
                 "hitl_next": rejected_next,
             }
-        want_explain = bool(state.get(explain_field))
+        want_explain = bool(explain_field and state.get(explain_field))
         if approved_next is not None:
             nxt = str(approved_next)
         else:

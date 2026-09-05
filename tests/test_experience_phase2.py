@@ -7,7 +7,7 @@ from edim_dde_ai.experiences import (
     apply_status_boost,
     backfill_outcomes_from_store,
     filter_hits_by_metadata,
-    list_recommendations_for_job,
+    list_recommendations,
     maybe_index_experience,
     register_experience_transform,
     search_experiences_for_entity,
@@ -29,17 +29,18 @@ class _ToyTransform:
     def transform(self, record: RecommendationRecord) -> ExperienceDocument | None:
         status = str(record.status or "").lower()
         if status == "proposed":
-            # Index proposed for this toy (unlike RCA).
             pass
         return ExperienceDocument(
             doc_id=record.recommendation_id,
             corpus=self.corpus,
-            text=f"features for {record.job_id} status={record.status}",
+            text=(
+                f"features for {record.subject('job_id')} status={record.status}"
+            ),
             feature_labels=["signal_x"],
             action_signature="action:x",
             metadata={
                 "agent_id": self.agent_id,
-                "job_id": record.job_id,
+                "job_id": record.subject("job_id"),
                 "status": record.status,
                 "action_signature": "action:x",
             },
@@ -110,7 +111,7 @@ def test_search_corpus_status_boost_and_filter():
     entity = search_experiences_for_entity(
         "memory pressure",
         corpus="toy-outcomes",
-        job_id="job-2",
+        filters={"job_id": "job-2"},
     )
     assert len(entity) == 1
     assert entity[0].id == "a1"
@@ -122,7 +123,7 @@ def test_filter_hits_by_metadata_noop_when_empty():
     assert filter_hits_by_metadata(hits, {}) == hits
 
 
-def test_list_recommendations_for_job_and_backfill(monkeypatch):
+def test_list_recommendations_and_backfill(monkeypatch):
     rec_store = MemoryRecommendationStore()
     set_recommendation_store(rec_store)
     register_experience_transform(_ToyTransform())
@@ -133,35 +134,34 @@ def test_list_recommendations_for_job_and_backfill(monkeypatch):
     applied = RecommendationRecord(
         recommendation_id="r-applied",
         agent_id="toy_agent",
-        job_id="job-42",
+        subjects={"job_id": "job-42"},
         status="applied",
         response={"ok": True},
     )
     proposed = RecommendationRecord(
         recommendation_id="r-proposed",
         agent_id="toy_agent",
-        job_id="job-42",
+        subjects={"job_id": "job-42"},
         status="proposed",
         response={"ok": True},
     )
     other = RecommendationRecord(
         recommendation_id="r-other",
         agent_id="toy_agent",
-        job_id="job-99",
+        subjects={"job_id": "job-99"},
         status="applied",
         response={"ok": True},
     )
-    from edim_dde_ai.recommendations import get_recommendation_store
-
-    store = get_recommendation_store()
+    store = rec_store
     store.save(applied)
     store.save(proposed)
     store.save(other)
 
-    rows = list_recommendations_for_job("job-42", agent_id="toy_agent")
+    rows = list_recommendations(
+        agent_id="toy_agent", subjects={"job_id": "job-42"}
+    )
     assert {r.recommendation_id for r in rows} == {"r-applied", "r-proposed"}
 
-    # Clear retrieval and re-backfill
     set_retrieval_provider(MemoryRetrieval())
     dry = backfill_outcomes_from_store(agent_id="toy_agent", dry_run=True, limit=50)
     assert isinstance(dry, BackfillResult)

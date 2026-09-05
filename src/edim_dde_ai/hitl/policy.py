@@ -96,20 +96,18 @@ def filter_hitl_patch(
 ) -> dict[str, Any]:
     """Return allowlisted flat field updates from a HITL patch body.
 
-    Accepts a flat map or a nested map under ``target_key`` /
-    ``recommendation``. When ``allowlist`` is ``None``, all source keys are
-    kept (except decision meta keys). When ``allowlist`` is empty, returns ``{}``.
+    Accepts a flat map or, when ``target_key`` is set, a nested map under that
+    key. When ``allowlist`` is ``None``, all source keys are kept (except
+    decision meta keys). When ``allowlist`` is empty, returns ``{}``.
     """
     if not patch or not isinstance(patch, dict):
         return {}
 
     raw: dict[str, Any] = patch
-    nested_keys = [k for k in (target_key, "recommendation") if k]
-    for key in nested_keys:
-        nested = patch.get(key)
-        if isinstance(nested, dict) and (len(patch) == 1 or key == target_key):
+    if target_key:
+        nested = patch.get(target_key)
+        if isinstance(nested, dict) and (len(patch) == 1 or target_key in patch):
             raw = nested
-            break
 
     if allowlist is not None and not allowlist:
         return {}

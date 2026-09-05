@@ -18,6 +18,12 @@ from edim_dde_ai.errors import HitlError, HitlPaused
 from edim_dde_ai.hitl.apply_outcome import hitl_apply_outcome_factory
 from edim_dde_ai.hitl.decorator import RESUME_AT_KEY, skip_until_resume
 from edim_dde_ai.hitl.gate import apply_gate_build_config, hitl_gate_factory
+from edim_dde_ai.hitl.persist import (
+    clear_hitl_persist_adapters,
+    list_hitl_persist_adapters,
+    persist_after_hitl_if_needed,
+    register_hitl_persist_adapter,
+)
 from edim_dde_ai.hitl.policy import (
     allowed_decisions,
     apply_patch_to_state,
@@ -54,18 +60,22 @@ __all__ = [
     "allowed_decisions",
     "apply_gate_build_config",
     "apply_patch_to_state",
+    "clear_hitl_persist_adapters",
     "close_hitl_session",
     "filter_hitl_patch",
     "hitl_apply_outcome_factory",
     "hitl_block",
     "hitl_gate_factory",
     "is_hitl_waiting",
+    "list_hitl_persist_adapters",
     "merge_hitl_decision",
     "patch_allowlist",
     "patch_target",
+    "persist_after_hitl_if_needed",
     "persist_hitl_pause",
     "prepare_resume_patch",
     "prior_decision_for_gate",
+    "register_hitl_persist_adapter",
     "resume_hitl_session",
     "should_persist_after_hitl",
     "skip_until_resume",

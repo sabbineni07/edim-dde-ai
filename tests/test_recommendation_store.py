@@ -29,17 +29,19 @@ def test_created_at_score_iso():
 def test_filter_recommendation_rows():
     a = RecommendationRecord(
         recommendation_id="a",
-        job_id="j-1",
+        agent_id="demo",
+        subjects={"job_id": "j-1"},
         status="proposed",
         created_at="2026-01-02T00:00:00+00:00",
     )
     b = RecommendationRecord(
         recommendation_id="b",
-        job_id="j-2",
+        agent_id="demo",
+        subjects={"job_id": "j-2"},
         status="accepted",
         created_at="2026-01-03T00:00:00+00:00",
     )
-    out = filter_recommendation_rows([a, b], job_id="j-1")
+    out = filter_recommendation_rows([a, b], subjects={"job_id": "j-1"})
     assert [r.recommendation_id for r in out] == ["a"]
 
 
@@ -58,14 +60,14 @@ def test_memory_lifecycle():
     rid = new_recommendation_id()
     rec = RecommendationRecord(
         recommendation_id=rid,
-        job_id="j-1",
-        cluster_id="c-1",
+        agent_id="demo",
+        subjects={"job_id": "j-1", "cluster_id": "c-1"},
         status="proposed",
         response={"recommendation": {"max_workers": 8}},
     )
     store.save(rec)
-    assert store.get(rid).job_id == "j-1"
-    listed = store.list(job_id="j-1")
+    assert store.get(rid).subject("job_id") == "j-1"
+    listed = store.list(subjects={"job_id": "j-1"})
     assert len(listed) == 1
     updated = store.update_status(rid, "accepted")
     assert updated is not None
@@ -79,7 +81,12 @@ def test_none_store_discards():
     assert store.name == "none"
     rid = new_recommendation_id()
     store.save(
-        RecommendationRecord(recommendation_id=rid, job_id="j-1", status="proposed")
+        RecommendationRecord(
+            recommendation_id=rid,
+            agent_id="demo",
+            subjects={"job_id": "j-1"},
+            status="proposed",
+        )
     )
     assert store.get(rid) is None
     assert store.list() == []
@@ -92,3 +99,17 @@ def test_configure_from_env(monkeypatch):
     assert get_recommendation_store().name == "memory"
     clear_recommendation_store()
     set_recommendation_store(create_recommendation_store("none"))
+
+
+def test_from_dict_folds_legacy_top_level_subjects():
+    rec = RecommendationRecord.from_dict(
+        {
+            "recommendation_id": "r1",
+            "agent_id": "demo",
+            "job_id": "j-legacy",
+            "cluster_id": "c-legacy",
+            "status": "proposed",
+        }
+    )
+    assert rec.subjects["job_id"] == "j-legacy"
+    assert rec.subjects["cluster_id"] == "c-legacy"

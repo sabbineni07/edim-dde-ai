@@ -19,7 +19,7 @@ Public API
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Mapping, Protocol, runtime_checkable
 
 from edim_dde_ai.recommendations.models import RecommendationRecord
 
@@ -65,19 +65,18 @@ class RecommendationStore(Protocol):
     def list(
         self,
         *,
-        job_id: str | None = None,
-        cluster_id: str | None = None,
-        status: str | None = None,
         agent_id: str | None = None,
+        status: str | None = None,
+        subjects: Mapping[str, Any] | None = None,
         limit: int = 50,
     ) -> list[RecommendationRecord]:
         """List newest-first, optionally filtered.
 
         Args:
-            job_id: Exact match filter when set.
-            cluster_id: Exact match filter when set.
-            status: Exact match filter when set.
             agent_id: Exact match filter when set.
+            status: Exact match filter when set.
+            subjects: Exact match on ``RecommendationRecord.subjects`` keys
+                (e.g. ``{"job_id": "j1"}``).
             limit: Max rows (backends clamp to at least 1).
 
         Returns:

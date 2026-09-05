@@ -3,8 +3,8 @@
 Business purpose
 ----------------
 Agents persist product history as ``RecommendationRecord`` rows. Separately,
-cross-job learning needs **situation/action cards** in a retrieval corpus so
-later runs can find feature-similar past outcomes (not exact ``job_id`` matches).
+cross-entity learning needs **situation/action cards** in a retrieval corpus so
+later runs can find feature-similar past outcomes (not exact entity-id matches).
 
 This package is that **derived index seam**: domain packs register an
 ``ExperienceTransform`` per ``agent_id``; platform code upserts into the active
@@ -16,13 +16,13 @@ How it fits the platform
 * ``ExperienceIndexingStore`` wraps store writes so save/status transitions
   also update (or delete) the experience corpus.
 * Graph helpers call ``search_corpus`` (de-dupe + status boost).
-* Phase 2: entity helpers and ``backfill_outcomes_from_store`` for Jobs.
+* Phase 2: entity helpers and ``backfill_outcomes_from_store``.
 
 Layers
 ------
 * ``models`` / ``protocols`` / ``registry`` / ``indexing`` / ``dedupe``
 * ``ranking`` — status boost for accepted/applied
-* ``entity`` — job-scoped store + filtered experience search
+* ``entity`` — subject-filtered store + experience search
 * ``backfill`` — replay store rows into outcomes corpora
 
 Public API
@@ -41,7 +41,7 @@ from edim_dde_ai.experiences.dedupe import (
 )
 from edim_dde_ai.experiences.entity import (
     filter_hits_by_metadata,
-    list_recommendations_for_job,
+    list_recommendations,
     search_experiences_for_entity,
 )
 from edim_dde_ai.experiences.indexing import (
@@ -79,7 +79,7 @@ __all__ = [
     "get_experience_transform",
     "indexable_statuses",
     "list_experience_transforms",
-    "list_recommendations_for_job",
+    "list_recommendations",
     "maybe_index_experience",
     "register_experience_transform",
     "search_experiences_for_entity",

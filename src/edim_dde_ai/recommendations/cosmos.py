@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, Mapping
 
 from edim_dde_ai.recommendations.models import RecommendationRecord
 from edim_dde_ai.recommendations.support import RecommendationStatusMixin
@@ -114,35 +114,29 @@ class CosmosRecommendationStore(RecommendationStatusMixin):
     def list(
         self,
         *,
-        job_id: str | None = None,
-        cluster_id: str | None = None,
-        status: str | None = None,
         agent_id: str | None = None,
+        status: str | None = None,
+        subjects: Mapping[str, Any] | None = None,
         limit: int = 50,
     ) -> list[RecommendationRecord]:
-        """Cross-partition query, newest ``created_at`` first.
-
-        Args:
-            job_id / cluster_id / status / agent_id: Exact filters when set.
-            limit: Max rows.
-
-        Returns:
-            Matching records (at most ``limit``).
-        """
+        """Cross-partition query, newest ``created_at`` first."""
         clauses = ["1=1"]
         params: list[dict[str, Any]] = []
-        if job_id is not None:
-            clauses.append("c.job_id = @job_id")
-            params.append({"name": "@job_id", "value": job_id})
-        if cluster_id is not None:
-            clauses.append("c.cluster_id = @cluster_id")
-            params.append({"name": "@cluster_id", "value": cluster_id})
         if status is not None:
             clauses.append("c.status = @status")
             params.append({"name": "@status", "value": status})
         if agent_id is not None:
             clauses.append("c.agent_id = @agent_id")
             params.append({"name": "@agent_id", "value": agent_id})
+        clean_subjects = {
+            str(k): v
+            for k, v in dict(subjects or {}).items()
+            if v is not None and str(v) != ""
+        }
+        for key, value in clean_subjects.items():
+            pname = f"@subj_{key}"
+            clauses.append(f"c.subjects.{key} = {pname}")
+            params.append({"name": pname, "value": value})
         query = (
             "SELECT * FROM c WHERE "
             + " AND ".join(clauses)

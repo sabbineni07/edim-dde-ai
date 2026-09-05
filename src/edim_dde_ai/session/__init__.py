@@ -7,6 +7,8 @@ Package layout:
 * ``nodes`` — ``session_prepare`` preamble
 * ``messages`` — in-graph message window helpers
 * ``checkpointer`` — ``EDIM_CHECKPOINTER`` registry (memory | postgres)
+* ``host`` — conversation / session projection helpers (import from
+  ``edim_dde_ai.session.host`` to avoid registry circular imports)
 
 Graph wiring lives in ``edim_dde_ai.graph.session_builder``.
 """

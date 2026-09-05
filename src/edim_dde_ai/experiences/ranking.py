@@ -60,7 +60,7 @@ def apply_status_boost(
 ) -> list[RetrievalHit]:
     """Add status boost to each hit score; optionally re-sort descending.
 
-    Preserves ``metadata`` (including ``occurrences`` / ``also_job_ids`` from
+    Preserves ``metadata`` (including ``occurrences`` / ``also_entity_ids`` from
     de-dupe). Hits without ``metadata.status`` are unchanged.
 
     Args:

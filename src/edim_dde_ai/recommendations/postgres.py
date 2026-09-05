@@ -1,28 +1,10 @@
-"""PostgreSQL recommendation history store.
-
-Business purpose
-----------------
-Durable recommendation history in PostgreSQL for local Compose and hosts that
-already use Postgres for StateStore.
-
-How it fits the platform
-------------------------
-Table ``edim_recommendations`` stores indexed filter columns plus a JSONB
-``payload`` of the full ``RecommendationRecord``. Shares DSN resolution with
-StateStore (``EDIM_DATABASE_URL`` / ``DATABASE_URL``).
-
-Install: ``pip install 'edim-dde-ai[postgres]'``
-
-Public API
-----------
-* ``PostgresRecommendationStore``
-"""
+"""PostgreSQL recommendation history store."""
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Mapping
 
 from edim_dde_ai.recommendations.models import RecommendationRecord
 from edim_dde_ai.recommendations.support import (
@@ -37,30 +19,26 @@ _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS edim_recommendations (
   recommendation_id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL,
-  job_id TEXT NULL,
-  cluster_id TEXT NULL,
   status TEXT NOT NULL,
+  subjects JSONB NOT NULL DEFAULT '{}'::jsonb,
   payload JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS edim_recommendations_job_idx
-  ON edim_recommendations (job_id, created_at DESC);
+ALTER TABLE edim_recommendations ADD COLUMN IF NOT EXISTS subjects JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE edim_recommendations DROP COLUMN IF EXISTS job_id;
+ALTER TABLE edim_recommendations DROP COLUMN IF EXISTS cluster_id;
+CREATE INDEX IF NOT EXISTS edim_recommendations_agent_idx
+  ON edim_recommendations (agent_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS edim_recommendations_status_idx
   ON edim_recommendations (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS edim_recommendations_subjects_gin
+  ON edim_recommendations USING GIN (subjects);
 """
 
 
 class PostgresRecommendationStore(RecommendationStatusMixin):
-    """Recommendation history in PostgreSQL (same DSN as StateStore by default).
-
-    Install: ``pip install 'edim-dde-ai[postgres]'``
-
-    Env: ``EDIM_DATABASE_URL`` or ``DATABASE_URL``
-
-    Args:
-        dsn: Optional connection string; otherwise resolved from env.
-    """
+    """Recommendation history in PostgreSQL (same DSN as StateStore by default)."""
 
     def __init__(self, dsn: str | None = None) -> None:
         try:
@@ -79,57 +57,44 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
 
     @property
     def name(self) -> str:
-        """Backend id ``postgres``."""
         return "postgres"
 
     def _connect(self):
-        """Open a dict-row psycopg connection to the configured DSN."""
         return self._psycopg.connect(self._dsn, row_factory=self._dict_row)
 
     def ensure_schema(self) -> None:
-        """Create ``edim_recommendations`` table and indexes if missing."""
         with self._connect() as conn:
             conn.execute(_SCHEMA_SQL)
             conn.commit()
 
     def ping(self) -> bool:
-        """Return True when ``SELECT 1`` succeeds."""
         with self._connect() as conn:
             conn.execute("SELECT 1")
         return True
 
     def save(self, record: RecommendationRecord) -> RecommendationRecord:
-        """Upsert filter columns + full JSONB payload.
-
-        Args:
-            record: Full recommendation document.
-
-        Returns:
-            The same ``record``.
-        """
         payload = json.dumps(record.to_dict())
+        subjects = json.dumps(record.subjects or {})
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO edim_recommendations (
-                  recommendation_id, agent_id, job_id, cluster_id, status, payload,
+                  recommendation_id, agent_id, status, subjects, payload,
                   created_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s::jsonb, NOW(), NOW())
+                VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, NOW(), NOW())
                 ON CONFLICT (recommendation_id) DO UPDATE
                   SET agent_id = EXCLUDED.agent_id,
-                      job_id = EXCLUDED.job_id,
-                      cluster_id = EXCLUDED.cluster_id,
                       status = EXCLUDED.status,
+                      subjects = EXCLUDED.subjects,
                       payload = EXCLUDED.payload,
                       updated_at = NOW()
                 """,
                 (
                     record.recommendation_id,
                     record.agent_id,
-                    record.job_id,
-                    record.cluster_id,
                     record.status,
+                    subjects,
                     payload,
                 ),
             )
@@ -137,7 +102,6 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
         return record
 
     def get(self, recommendation_id: str) -> RecommendationRecord | None:
-        """Fetch one recommendation by id, or ``None``."""
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT payload FROM edim_recommendations WHERE recommendation_id = %s",
@@ -150,35 +114,27 @@ class PostgresRecommendationStore(RecommendationStatusMixin):
     def list(
         self,
         *,
-        job_id: str | None = None,
-        cluster_id: str | None = None,
-        status: str | None = None,
         agent_id: str | None = None,
+        status: str | None = None,
+        subjects: Mapping[str, Any] | None = None,
         limit: int = 50,
     ) -> list[RecommendationRecord]:
-        """SQL-filtered list, newest ``created_at`` first.
-
-        Args:
-            job_id / cluster_id / status / agent_id: Exact filters when set.
-            limit: Max rows.
-
-        Returns:
-            Matching records reconstituted from JSONB payloads.
-        """
         clauses: list[str] = []
         params: list[Any] = []
-        if job_id is not None:
-            clauses.append("job_id = %s")
-            params.append(job_id)
-        if cluster_id is not None:
-            clauses.append("cluster_id = %s")
-            params.append(cluster_id)
         if status is not None:
             clauses.append("status = %s")
             params.append(status)
         if agent_id is not None:
             clauses.append("agent_id = %s")
             params.append(agent_id)
+        clean_subjects = {
+            str(k): v
+            for k, v in dict(subjects or {}).items()
+            if v is not None and str(v) != ""
+        }
+        if clean_subjects:
+            clauses.append("subjects @> %s::jsonb")
+            params.append(json.dumps(clean_subjects))
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         params.append(max(1, limit))
         sql = f"""

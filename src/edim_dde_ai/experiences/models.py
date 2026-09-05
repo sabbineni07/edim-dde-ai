@@ -36,7 +36,7 @@ class ExperienceDocument:
         text: Embeddable / searchable body (features + outcome narrative).
         feature_labels: Open-vocabulary labels for display and query hints.
         action_signature: Stable fingerprint of the recommended action (dedupe).
-        metadata: Escape hatch (``job_id``, agent fields, occurrence hints, …).
+        metadata: Escape hatch (entity ids, agent fields, occurrence hints, …).
         source: Optional provenance string for retrieval hit display.
     """
 
