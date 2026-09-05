@@ -9,15 +9,15 @@ the gate without a LangGraph checkpointer.
 Public API
 ----------
 * ``skip_until_resume(node_id, fn)`` — Decorator around a flat-state node
+* ``NodeFn`` — type alias for flat-state node callables
 """
 
 from __future__ import annotations
 
 from typing import Any, Callable
 
-from edim_dde_ai.graph.adapters import NodeFn
-
 RESUME_AT_KEY = "hitl_resume_at"
+NodeFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 def skip_until_resume(node_id: str, fn: NodeFn) -> NodeFn:

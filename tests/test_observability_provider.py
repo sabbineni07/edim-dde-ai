@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from edim_dde_ai.observability import (
@@ -68,6 +70,16 @@ def test_configure_from_env(monkeypatch):
     assert get_observability_provider().name == "langsmith"
     clear_observability_provider()
     assert get_observability_provider().name == "none"
+
+
+def test_configure_none_disables_langchain_tracing(monkeypatch):
+    monkeypatch.setenv("EDIM_OBSERVABILITY", "none")
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+    monkeypatch.setenv("LANGCHAIN_TRACING", "true")
+    p = configure_observability_from_env()
+    assert p.name == "none"
+    assert os.environ.get("LANGCHAIN_TRACING_V2") == "false"
+    assert os.environ.get("LANGCHAIN_TRACING") == "false"
 
 
 def test_unknown_backend():

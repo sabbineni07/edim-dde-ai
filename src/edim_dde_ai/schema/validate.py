@@ -110,9 +110,17 @@ def validate_extended_blocks(data: dict[str, Any]) -> None:
 
     memory = data.get("memory")
     if memory is not None:
-        from edim_dde_ai.memory.models import MemoryPolicy
+        from edim_dde_ai.session.models import MemoryPolicy
 
-        MemoryPolicy.from_raw(memory)
+        policy = MemoryPolicy.from_raw(memory)
+        if policy.enabled and data.get("session") is None:
+            raise DefinitionError(
+                "session block is required when memory.strategy is not none"
+            )
+
+    session = data.get("session")
+    if session is not None and not isinstance(session, dict):
+        raise DefinitionError("session must be a mapping or null")
 
 
 def validate_agent_dict(data: dict[str, Any], *, use_jsonschema: bool = False) -> None:

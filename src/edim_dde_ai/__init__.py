@@ -1,16 +1,4 @@
-"""EDIM DDE AI — YAML-driven LangGraph agent framework.
-
-Business purpose:
-  Process-wide entry package: register agents from YAML/dicts, create runnable
-  ``MetadataAgent`` instances, and configure content, observability, store,
-  retrieval, evaluation, and web-search providers.
-
-Public API:
-  Re-exports registration, agent factory, content, observability, store,
-  recommendations, retrieval, evaluation, and web-search helpers. See ``__all__``.
-
-Importing this package also registers builtin node types via ``edim_dde_ai.nodes``.
-"""
+"""EDIM DDE AI — YAML-driven LangGraph agent framework."""
 
 from edim_dde_ai.api.entrypoints import (
     register_from_dict,
@@ -43,11 +31,6 @@ from edim_dde_ai.store import (
     set_state_store,
     sync_registered_agents_to_store,
 )
-from edim_dde_ai.memory import (
-    configure_conversation_store_from_env,
-    get_conversation_store,
-    set_conversation_store,
-)
 from edim_dde_ai.recommendations import (
     configure_recommendation_store_from_env,
     get_recommendation_store,
@@ -75,6 +58,15 @@ from edim_dde_ai.registry.agents import (
     register_agent,
 )
 from edim_dde_ai.registry.nodes import register_node
+from edim_dde_ai.session import (
+    MemoryPolicy,
+    clear_checkpointer,
+    configure_checkpointer_from_env,
+    create_checkpointer,
+    get_memory_policy,
+    get_session_policy,
+    resolve_checkpointer_name,
+)
 from edim_dde_ai.version import __version__
 from edim_dde_ai.hitl import resume_hitl_session
 
@@ -111,9 +103,6 @@ __all__ = [
     "get_state_store",
     "configure_state_store_from_env",
     "sync_registered_agents_to_store",
-    "set_conversation_store",
-    "get_conversation_store",
-    "configure_conversation_store_from_env",
     "set_recommendation_store",
     "get_recommendation_store",
     "configure_recommendation_store_from_env",
@@ -127,4 +116,11 @@ __all__ = [
     "get_web_search_provider",
     "configure_web_search_from_env",
     "resume_hitl_session",
+    "MemoryPolicy",
+    "get_memory_policy",
+    "get_session_policy",
+    "create_checkpointer",
+    "configure_checkpointer_from_env",
+    "clear_checkpointer",
+    "resolve_checkpointer_name",
 ]

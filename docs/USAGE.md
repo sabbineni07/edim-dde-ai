@@ -73,6 +73,36 @@ agent = create_agent("my_agent")
 
 See `examples/register_custom_nodes.py`.
 
+## Multi-turn sessions (checkpointer)
+
+Product agents with YAML `memory` + `session` compile via `build_session_graph`
+(≈ `build_graph` + initialize/converse/regenerate + checkpointer). Hosts that
+use `create_agent` / `AgentFactory` already go through `build_graph_for_definition`.
+
+```python
+from edim_dde_ai import configure_checkpointer_from_env, create_agent
+
+# Process-wide (FastAPI lifespan does this)
+configure_checkpointer_from_env()  # EDIM_CHECKPOINTER=memory|postgres
+
+agent = create_agent("cluster_tuning")  # uses build_graph_for_definition
+result = agent.invoke(
+    {"job_id": "j1", "cluster_id": "c1", "metrics": {"peak_worker_cpu_utilization_pct": 20}},
+    config={"configurable": {"thread_id": "conv-1"}},
+)
+```
+
+| Env | Meaning |
+|-----|---------|
+| `EDIM_CHECKPOINTER=memory` | In-process only (tests / default if unset) |
+| `EDIM_CHECKPOINTER=postgres` | Durable via `ConnectionPool` + `PostgresSaver` (Compose / `host-run` default) |
+| `EDIM_DATABASE_URL` | DSN shared with StateStore when postgres |
+
+Do **not** use `PostgresSaver.from_conn_string` for a long-lived FastAPI process —
+it is a context manager. Agent Server hosts ignore `EDIM_CHECKPOINTER` and use
+their own persistence. Schema: `edim-dde-domain/docs/framework/yaml-schema.md`
+(`session` block).
+
 ## Conditional edges (routers)
 
 Routers are factories: `(config) -> (state) -> branch_label`, same idea as node types.

@@ -7,7 +7,7 @@ applyTo: "**/*.py"
 
 - New catalogs → generic `Registry[T]` (Strategy), not ad-hoc module-level dicts without clear/get/set.
 - Graph assembly changes → `GraphBuilder` steps, not one-off compile scripts.
-- LangGraph state wrapping stays in `graph/adapters.py`.
+- LangGraph graphs use flat `AgentState` in `graph/builder.py` (no nested `data` bag).
 - Public exports go through `__init__.py` `__all__` deliberately.
 - Prefer typed errors from `errors.py` over bare `ValueError` for user-facing failures.
 - Do not introduce dynamic imports from config strings.

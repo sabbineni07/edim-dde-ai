@@ -24,10 +24,12 @@ This package is the **YAML-composed / Python-implemented LangGraph agents framew
 | Registry | Catalogs keyed by string id (`register_*` / `get_*`) |
 | Strategy | Swappable providers (retrieval, store, web, LLM) |
 | Factory | `(config) -> callable` node factories |
-| Builder | Graph assembly steps |
-| Adapter | Flat metadata dict ↔ LangGraph state |
+| Builder | Graph assembly (`build_graph` / `build_session_graph`) |
 | Facade | Stable public `__all__` / package exports |
 | Null Object | `none` / noop providers for disabled planes |
+| Decorator | HITL `skip_until_resume` around flat nodes |
+
+Flat `AgentState` only — do not reintroduce nested LangGraph `data` bag adapters.
 
 Avoid DI containers, Observer sprawl, and Abstract Factory unless there is a clear multi-runtime need.
 

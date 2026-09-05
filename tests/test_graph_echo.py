@@ -3,6 +3,8 @@ from pathlib import Path
 import pytest
 
 from edim_dde_ai import create_agent, register_from_yaml, register_node
+from edim_dde_ai.core.loader import load_yaml
+from edim_dde_ai.graph import build_graph
 from edim_dde_ai.registry.chains import register_chain_invoker
 from edim_dde_ai.errors import ChainInvokerError
 
@@ -15,6 +17,16 @@ def test_echo_agent_invoke():
     result = agent.invoke({"message": "hello"})
     assert result["greeting"] == "hello"
     assert result["result"] == {"greeting": "hello", "message": "hello"}
+
+
+def test_build_graph_preserves_product_input_shape():
+    definition = load_yaml(EXAMPLES / "echo_agent.agent.yaml")
+    graph = build_graph(definition)
+
+    result = graph.invoke({"message": "hello"})
+
+    assert result["result"] == {"greeting": "hello", "message": "hello"}
+    assert "data" not in result
 
 
 def test_two_step_template():
