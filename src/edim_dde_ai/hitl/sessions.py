@@ -60,6 +60,7 @@ def merge_hitl_decision(
     comment: str | None = None,
     patch: dict[str, Any] | None = None,
     actor: str | None = None,
+    patch_target: str | None = None,
 ) -> dict[str, Any]:
     """Return a new state dict with the human decision applied (resume input).
 
@@ -69,8 +70,11 @@ def merge_hitl_decision(
         gate_id: Gate that paused.
         decision: Allowlisted decision string (already normalized).
         comment: Optional reviewer comment.
-        patch: Optional extra keys (typical for ``modified``).
+        patch: Optional flat field updates (typical for ``modified``). Prefer
+            pre-filtering via ``prepare_resume_patch``.
         actor: Optional reviewer identity stored on the decision record.
+        patch_target: When set, merge ``patch`` into ``state[patch_target]``
+            instead of top-level keys.
 
     Returns:
         Shallow copy of ``state`` with HITL fields set.
@@ -90,7 +94,9 @@ def merge_hitl_decision(
     out[RESUME_AT_KEY] = gate_id
     out["session_id"] = session_id
     if patch:
-        out.update(patch)
+        from edim_dde_ai.hitl.policy import apply_patch_to_state
+
+        out = apply_patch_to_state(out, patch, target_key=patch_target)
     return out
 
 
@@ -234,6 +240,20 @@ def resume_hitl_session(
             f"HITL session {session_id!r} is {record.status!r}, expected {STATUS_WAITING}"
         )
 
+    from edim_dde_ai.hitl.policy import prepare_resume_patch, patch_target
+    from edim_dde_ai.registry.agents import get_agent_definition
+
+    try:
+        definition = get_agent_definition(record.agent_id)
+    except Exception:  # noqa: BLE001 — unknown agent still resumes with global rules
+        definition = None
+
+    # Agent YAML may further restrict decisions / require allowlisted patches.
+    filtered_patch = prepare_resume_patch(
+        definition, decision=choice, patch=patch
+    )
+    target = patch_target(definition) if choice == "modified" else None
+
     gate_id = (
         str(record.extra.get("gate_id") or "")
         or str((record.state or {}).get("hitl_gate_id") or "")
@@ -245,8 +265,9 @@ def resume_hitl_session(
         gate_id=gate_id,
         decision=choice,
         comment=comment,
-        patch=patch,
+        patch=filtered_patch,
         actor=actor,
+        patch_target=target,
     )
 
     rid = (request_id or record.request_id or "").strip() or str(uuid.uuid4())
