@@ -25,9 +25,8 @@ Reuse is expressed with a small set of classic patterns — no DI container, Obs
 |---------|-------|------|
 | **Registry** (catalog / Singleton scope) | `registry/base.py` → nodes, chains, routers, agents | One keyed catalog per concern; seed + clear/restore for builtins |
 | **Strategy** | Node factories, chain invokers, router factories, `StateStore` backends | Swappable algorithms selected by allowlisted id |
-| **Builder** | `graph/builder.py` (`GraphBuilder`) | Stepwise graph assembly; injects HITL gate config |
+| **Builder** | `graph/builder.py` (`GraphBuilder`); `graph/session_builder.py` | Stepwise flat-state assembly; session = same builder + modes + checkpointer |
 | **Factory Method** | `factories/agent.py` (`AgentFactory.create`); `hitl.gate` factory | Construct `MetadataAgent` / bind node config |
-| **Adapter** | `graph/adapters.py` | Flat metadata callables ↔ LangGraph `AgentState.data` bag |
 | **Decorator** | `hitl/decorator.py` (`skip_until_resume`) | Skip nodes before the resume gate without a checkpointer |
 | **Template Method** | `graph/runtime.py` (`MetadataAgent`) | Shared `_prepare` / `_extract` / kwargs merge / `HitlPaused` unwrap |
 | **Facade** | `edim_dde_ai` / `hitl.resume_hitl_session` / `api/entrypoints` | Stable public API over internal structure |
@@ -46,7 +45,8 @@ edim_dde_ai/
   content/             # PromptProvider / SkillProvider / LLMProvider + ContentHub
   registry/            # Registry base + agents, nodes, chains, routers
   factories/           # AgentFactory
-  graph/               # Builder, adapters, MetadataAgent runtime
+  graph/               # Builder, session builder, MetadataAgent runtime
+  session/             # Checkpointer registry + session_prepare / policy / router
   hitl/                # HITL gate, skip Decorator, session Facade
   nodes/               # builtin node implementations + BUILTIN_NODE_FACTORIES
   observability/       # ObservabilityProvider (langsmith | mlflow | none)
@@ -56,7 +56,11 @@ edim_dde_ai/
   cli/                 # argparse CLI + path store
 ```
 
-**Planes:** graph YAML stays in Git; `store/` holds catalog/session/audit metadata; `retrieval/` is similarity search (RAG is compose-in-graph); `observability/` is the tracing side channel. Engineer guides (domain docs): `platform/state-store.md`, `platform/retrieval-and-rag.md`, `platform/observability.md`.
+**Planes:** graph YAML stays in Git; `store/` holds catalog/HITL-session/audit metadata;
+`session/` holds LangGraph multi-turn checkpoints (`EDIM_CHECKPOINTER`);
+`retrieval/` is similarity search (RAG is compose-in-graph); `observability/` is the
+tracing side channel. Engineer guides (domain docs): `platform/state-store.md`,
+`platform/retrieval-and-rag.md`, `platform/observability.md`.
 
 ## Components
 
@@ -71,7 +75,7 @@ registry.agents  ◄── register_agent / api.register_from_*
       │
       ▼
 factories.agent / graph.builder   ── uses registry.nodes + registry.routers
-      │                              (+ adapters for LangGraph state)
+      │                              (flat AgentState + optional session/checkpointer)
       ▼
 graph.runtime.MetadataAgent  (invoke / ainvoke)
 ```
@@ -91,9 +95,27 @@ graph.runtime.MetadataAgent  (invoke / ainvoke)
 ### Graph builder (`graph/builder.py`)
 
 - `GraphBuilder` adds nodes, entry, edges, conditional edges, then compiles.
-- `build_graph(definition)` is the public function and uses `GraphBuilder` internally.
-- Adapters wrap flat-state nodes/routers for the internal `data` bag channel.
+- `build_graph(definition)` is the public function (flat dict state only).
+- `build_flat_graph` is a deprecated alias of `build_graph`.
 - Edges: `"START"` / `"END"` strings are reserved endpoints (`START` declares entry; `"END"` maps to LangGraph `END`). `graph.entry` is optional when a `[START, node]` edge is present.
+
+### Session builder (`graph/session_builder.py`)
+
+Mental model:
+
+```text
+build_session_graph ≈ build_graph + initialize/converse/regenerate + checkpointer
+```
+
+- Used when YAML `memory.strategy` is not `none` (requires a `session` block).
+- Prepends `session_prepare` as entry; branches on `session_mode` to
+  initialize / converse / regenerate path entries; `compile(checkpointer)`.
+- `build_graph_for_definition` is the chooser for FastAPI / `AgentFactory`.
+- Checkpointer: `EDIM_CHECKPOINTER=memory|postgres` via `session/checkpointer.py`.
+  Postgres = long-lived `ConnectionPool` + `PostgresSaver` (not `from_conn_string`).
+- **Host split:** ACA Native / FastAPI use this path. Agent Server
+  (`langsmith_entrypoint`) calls plain `build_graph` and uses the Agent Server’s
+  own persistence — not `EDIM_CHECKPOINTER`.
 
 ### Routers (`registry/routers.py`)
 

@@ -1,4 +1,8 @@
-"""In-graph message list helpers for checkpoint-backed session state."""
+"""In-graph message list helpers for checkpoint-backed session state.
+
+Messages live on flat graph state as ``messages: [{role, content}, …]`` and are
+persisted by the LangGraph checkpointer between turns.
+"""
 
 from __future__ import annotations
 
@@ -67,7 +71,7 @@ def format_messages_for_prompt(messages: list[dict[str, str]]) -> str:
 
 
 def assistant_text_from_final(final: dict[str, Any]) -> str:
-    """Extract a bounded assistant record from a graph result."""
+    """Extract a bounded assistant record from a graph result for checkpointing."""
     if isinstance(final.get("result"), dict):
         value: Any = final["result"]
     elif final.get("explanation"):

@@ -1,4 +1,14 @@
-"""Session mode resolution for initialize / converse / regenerate paths."""
+"""Session mode resolution for initialize / converse / regenerate paths.
+
+Modes (written to state as ``session_mode`` by ``session_prepare``):
+
+* ``initialize`` — first turn; run full pipeline from ``initialize_entry``
+* ``converse`` — follow-up Q&A / explanation path
+* ``regenerate`` — phrase-triggered new recommendation/diagnosis path
+
+Mode is chosen from checkpoint flag ``session_initialized`` plus optional
+``regenerate_phrases`` in the YAML ``session`` block.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +22,7 @@ SESSION_MODE_REGENERATE = "regenerate"
 
 
 def extract_user_message(state: dict[str, Any]) -> str:
-    """Normalize engineer input from ``user_message`` or ``message``."""
+    """Normalize engineer input from ``user_message`` or ``message`` (max 8k)."""
     for key in ("user_message", "message"):
         value = str(state.get(key) or "").strip()
         if value:
@@ -21,7 +31,7 @@ def extract_user_message(state: dict[str, Any]) -> str:
 
 
 def is_regenerate_intent(message: str, policy: SessionPolicy) -> bool:
-    """Return whether a follow-up message should rerun the recommendation path."""
+    """True when a follow-up should take the regenerate path (phrase match)."""
     if not message or policy.session is None:
         return False
     lowered = message.lower()
@@ -34,7 +44,14 @@ def resolve_session_mode(
     *,
     checkpoint_initialized: bool = False,
 ) -> str:
-    """Choose initialize, converse, or regenerate for the current invoke."""
+    """Choose initialize, converse, or regenerate for the current invoke.
+
+    Args:
+        state: Flat invoke / checkpoint state.
+        policy: Parsed YAML memory + session policy.
+        checkpoint_initialized: Extra signal when ``session_initialized`` may
+            only exist in the checkpointer (merged into state by LangGraph).
+    """
     if not policy.enabled or policy.session is None:
         return SESSION_MODE_INITIALIZE
     initialized = bool(state.get("session_initialized") or checkpoint_initialized)

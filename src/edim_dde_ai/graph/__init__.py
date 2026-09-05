@@ -1,4 +1,11 @@
-"""LangGraph construction and runtime facade."""
+"""LangGraph construction and runtime facade.
+
+* ``build_graph`` — plain flat compile (YAML entry)
+* ``build_session_graph`` / ``build_graph_for_definition`` — multi-turn + checkpointer
+* ``MetadataAgent`` — product invoke/ainvoke wrapper
+
+Flat ``AgentState`` is the only graph state shape.
+"""
 
 from edim_dde_ai.graph.builder import (
     AgentState,

@@ -1,4 +1,13 @@
-"""Built-in session nodes prepended to checkpoint-backed agent graphs."""
+"""Built-in session nodes prepended to checkpoint-backed agent graphs.
+
+``session_prepare`` is the graph entry for multi-turn agents. It:
+
+1. Appends the current user message to ``messages``
+2. Sets ``session_mode`` (initialize | converse | regenerate)
+3. Builds ``conversation_context`` (windowed) for LLM prompts
+
+Downstream conditional edges then jump to the YAML path entry for that mode.
+"""
 
 from __future__ import annotations
 
@@ -15,8 +24,10 @@ from edim_dde_ai.session.router import extract_user_message, resolve_session_mod
 
 
 def session_prepare_factory(config: dict[str, Any]):
-    """Graph-build factory for the session routing preamble node."""
+    """Graph-build factory for the session routing preamble node.
 
+    Config must include ``policy: SessionPolicy`` (injected by ``build_session_graph``).
+    """
     policy = config["policy"]
     if not isinstance(policy, SessionPolicy):
         raise TypeError("session.prepare requires SessionPolicy in config.policy")

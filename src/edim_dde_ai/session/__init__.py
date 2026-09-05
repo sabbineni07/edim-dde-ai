@@ -1,4 +1,15 @@
-"""LangGraph checkpoint-backed multi-turn session support."""
+"""LangGraph checkpoint-backed multi-turn session support.
+
+Package layout:
+
+* ``policy`` / ``models`` — YAML ``memory`` + ``session`` parsing
+* ``router`` — initialize | converse | regenerate
+* ``nodes`` — ``session_prepare`` preamble
+* ``messages`` — in-graph message window helpers
+* ``checkpointer`` — ``EDIM_CHECKPOINTER`` registry (memory | postgres)
+
+Graph wiring lives in ``edim_dde_ai.graph.session_builder``.
+"""
 
 from edim_dde_ai.session.checkpointer import (
     clear_checkpointer,

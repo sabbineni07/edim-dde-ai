@@ -1,4 +1,16 @@
-"""Process-wide LangGraph checkpointer registry."""
+"""Process-wide LangGraph checkpointer registry (multi-turn graph state).
+
+Host config: ``EDIM_CHECKPOINTER=memory|postgres`` (Compose / host-run default
+postgres). DSN comes from ``EDIM_DATABASE_URL`` / ``DATABASE_URL``.
+
+This store is **not** StateStore (HITL/catalog) or RecommendationStore (product
+history). Those may share the same Postgres server but use different tables.
+
+Public API:
+  - ``resolve_checkpointer_name`` / ``create_checkpointer``
+  - ``configure_checkpointer_from_env`` — API lifespan
+  - ``get_checkpointer`` / ``set_checkpointer`` / ``clear_checkpointer``
+"""
 
 from __future__ import annotations
 
@@ -8,12 +20,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Process singletons — FastAPI lifespan installs once; tests call clear_*.
 _CHECKPOINTER: Any | None = None
 _PG_POOL: Any | None = None
 
 
 def resolve_checkpointer_name(raw: str | None = None) -> str:
-    """Normalize ``EDIM_CHECKPOINTER`` to ``memory`` or ``postgres``."""
+    """Normalize ``EDIM_CHECKPOINTER`` to ``memory`` or ``postgres``.
+
+    Aliases: ``mem``/``inmemory``/``none`` → memory; ``pg``/``postgresql`` → postgres.
+    """
     value = (
         raw if raw is not None else os.environ.get("EDIM_CHECKPOINTER", "memory")
     ).strip().lower()
@@ -27,6 +43,7 @@ def resolve_checkpointer_name(raw: str | None = None) -> str:
 
 
 def _close_pg_pool() -> None:
+    """Best-effort close of the retained Postgres connection pool."""
     global _PG_POOL
     pool = _PG_POOL
     _PG_POOL = None
@@ -72,9 +89,10 @@ def _create_postgres_checkpointer(dsn: str) -> Any:
         },
         open=True,
     )
+    # Keep pool alive for the process; PostgresSaver alone would GC-close it.
     _PG_POOL = pool
     checkpointer = PostgresSaver(pool)
-    checkpointer.setup()
+    checkpointer.setup()  # idempotent checkpoint table migrations
     return checkpointer
 
 
@@ -98,7 +116,7 @@ def create_checkpointer(name: str | None = None, **kwargs: Any) -> Any:
 
 
 def set_checkpointer(checkpointer: Any) -> None:
-    """Install the process checkpointer."""
+    """Install the process checkpointer used by newly compiled session graphs."""
     global _CHECKPOINTER
     _CHECKPOINTER = checkpointer
     logger.info(
@@ -116,14 +134,17 @@ def get_checkpointer() -> Any:
 
 
 def clear_checkpointer() -> None:
-    """Reset to a fresh in-memory checkpointer (tests)."""
+    """Reset to a fresh in-memory checkpointer (tests / process teardown)."""
     global _CHECKPOINTER
     _close_pg_pool()
     _CHECKPOINTER = create_checkpointer("memory")
 
 
 def configure_checkpointer_from_env(**kwargs: Any) -> Any:
-    """Create and install the configured checkpointer."""
+    """Create and install the checkpointer from ``EDIM_CHECKPOINTER`` (+ DSN).
+
+    Called from API lifespan. Returns the installed instance.
+    """
     checkpointer = create_checkpointer(None, **kwargs)
     set_checkpointer(checkpointer)
     return checkpointer

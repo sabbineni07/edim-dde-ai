@@ -1,8 +1,8 @@
 """Factory Method: construct MetadataAgent from a registered definition.
 
 Business purpose:
-  Look up ``AgentDefinition`` by id, compile the LangGraph via ``build_graph``,
-  and return a ``MetadataAgent`` ready for ``invoke`` / ``ainvoke``.
+Look up ``AgentDefinition`` by id, compile the LangGraph via ``build_graph_for_definition``,
+and return a ``MetadataAgent`` ready for ``invoke`` / ``ainvoke``.
 
 Public API:
   - ``AgentFactory.create(agent_id)`` — fresh compile (uncached)
@@ -25,7 +25,11 @@ from edim_dde_ai.registry.agents import get_agent_definition
 
 
 class AgentFactory:
-    """Compile agents from registry definitions (uncached; see ``create_agent``)."""
+    """Compile agents from registry definitions (uncached; see ``create_agent``).
+
+    Uses ``build_graph_for_definition`` so session-enabled YAML gets multi-turn
+    routing + checkpointer automatically; other agents get plain ``build_graph``.
+    """
 
     @staticmethod
     def create(agent_id: str) -> MetadataAgent:

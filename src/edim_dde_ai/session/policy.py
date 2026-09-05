@@ -1,8 +1,20 @@
-"""Session policy parsed from agent YAML ``memory`` and optional ``session`` blocks."""
+"""Session policy parsed from agent YAML ``memory`` and optional ``session`` blocks.
+
+Example YAML (multi-turn)::
+
+    memory:
+      strategy: window
+      k: 10
+    session:
+      initialize_entry: collect_metrics   # optional; defaults to graph.entry
+      converse_entry: prepare_explanation_payload
+      regenerate_entry: prepare_sizing_payload
+      regenerate_phrases: [cheaper, retry, …]
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from edim_dde_ai.errors import DefinitionError
@@ -22,7 +34,10 @@ _DEFAULT_REGENERATE_PHRASES = (
 
 @dataclass(frozen=True)
 class SessionConfig:
-    """Entry nodes for initialize / converse / regenerate session paths."""
+    """YAML ``session`` path entries for converse / regenerate.
+
+    ``initialize_entry`` lives on ``SessionPolicy`` (defaults to ``graph.entry``).
+    """
 
     converse_entry: str
     regenerate_entry: str
@@ -35,6 +50,7 @@ class SessionConfig:
         *,
         graph_entry: str,
     ) -> "SessionConfig":
+        """Parse ``session:`` from agent YAML when memory is enabled."""
         if raw is None:
             raise DefinitionError(
                 "session block is required when memory.strategy is not none; "
@@ -73,10 +89,12 @@ class SessionPolicy:
 
     @property
     def enabled(self) -> bool:
+        """True when ``memory.strategy`` is not ``none``."""
         return self.memory.enabled
 
     @classmethod
     def from_definition(cls, definition: Any) -> "SessionPolicy":
+        """Build policy from a loaded ``AgentDefinition`` (uses ``raw`` YAML)."""
         raw = getattr(definition, "raw", None) or {}
         memory = MemoryPolicy.from_raw(raw.get("memory"))
         graph_entry = getattr(definition, "graph_entry", "")

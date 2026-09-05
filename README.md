@@ -74,7 +74,9 @@ edim_dde_ai/
   version.py
   core/                # definition + YAML loading
   registry/            # agents, nodes, chains, routers
-  graph/               # LangGraph builder + MetadataAgent runtime
+  graph/               # flat builder + session_builder + MetadataAgent
+  session/             # checkpointer + session_prepare / policy
+  hitl/                # gate + skip Decorator + resume
   nodes/               # builtin node implementations
   api/                 # register_from_yaml / paths / directory / dict / JSON
   cli/                 # argparse CLI + path store
@@ -84,7 +86,7 @@ edim_dde_ai/
 
 ## Design (summary)
 
-**Patterns (GoF):** Registry (keyed catalogs), Strategy (nodes / chains / routers), Builder (`GraphBuilder`), Factory Method (`AgentFactory`), Adapter (LangGraph state wraps), Template Method (`MetadataAgent` invoke/ainvoke), Facade (public API). Details: [docs/DESIGN.md](docs/DESIGN.md#design-patterns-gof).
+**Patterns (GoF):** Registry (keyed catalogs), Strategy (nodes / chains / routers / stores), Builder (`GraphBuilder` / `build_session_graph`), Factory Method (`AgentFactory`), Template Method (`MetadataAgent` invoke/ainvoke), Facade (public API), Decorator (HITL skip). Flat `AgentState` only — no nested LangGraph data-bag Adapter. Details: [docs/DESIGN.md](docs/DESIGN.md#design-patterns-gof).
 
 **Compose, don't interpret.** Agent topology lives in YAML; behavior lives in Python behind an allowlist. That keeps product graphs declarative while preventing YAML from becoming a code-loading surface.
 
