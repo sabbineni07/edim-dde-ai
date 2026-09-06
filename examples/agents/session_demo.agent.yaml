@@ -1,45 +1,73 @@
+# =============================================================================
+# session_demo — multi-turn initialize / converse / regenerate
+# =============================================================================
+# Teaches: memory + session blocks → build_session_graph + LangGraph checkpointer.
+# Modes (framework picks from message / conversation_id):
+#   initialize  → session.initialize_entry (default: YAML START target)
+#   converse    → session.converse_entry
+#   regenerate  → session.regenerate_entry (phrase list match)
+#
+# Requires EDIM_CHECKPOINTER=memory|postgres when running under the API.
+# Docs: yaml-schema.md §memory / §session
+# =============================================================================
+
 agent_id: session_demo
 display_name: Session Demo
 version: 1
+
 entry:
   method: invoke
   sync: true
 
+# --- Conversation memory policy ----------------------------------------------
+# Omit or strategy: none → single-shot only (no follow-up thread_id).
 memory:
-  strategy: window
-  k: 3
-  max_tokens: 2000
-  max_chars: 4000
+  strategy: window    # none | window | summary | summary_buffer | vector
+  k: 3                # recent turns kept for window strategies
+  max_tokens: 2000    # soft context budget (tokens)
+  max_chars: 4000     # soft context budget (characters)
 
+# --- Session routing (required when memory.strategy != none) -----------------
 session:
+  # Node ids that start each path (must exist under graph.nodes).
   initialize_entry: init_step
   converse_entry: converse
   regenerate_entry: regenerate
+  # If the user message contains any of these (case-insensitive), route regenerate.
   regenerate_phrases:
     - cheaper
     - regenerate
 
 graph:
   nodes:
+    # Initialize path: prepare once, then produce a recommendation.
     - id: init_step
       type: set_value
       field: prepared
       value: "yes"
+
     - id: recommend
       type: set_value
       field: recommendation
       value: "rec-v1"
+
+    # Converse path: explain without re-running the full initialize pipeline.
     - id: converse
       type: set_value
       field: explanation
       value: "because metrics"
+
+    # Regenerate path: new recommendation version on the same thread.
     - id: regenerate
       type: set_value
       field: recommendation
       value: "rec-v2"
+
   edges:
+    # START → initialize pipeline head (session_prepare routes here on init).
     - [START, init_step]
     - [init_step, recommend]
     - [recommend, END]
+    # Follow-up entries are reached via session_prepare → branch (not START).
     - [converse, END]
     - [regenerate, END]

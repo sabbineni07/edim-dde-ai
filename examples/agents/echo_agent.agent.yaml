@@ -1,19 +1,48 @@
+# =============================================================================
+# echo_agent — minimal flat graph (hello-world)
+# =============================================================================
+# Teaches: agent identity, graph.nodes / graph.edges, set_value, echo_result.
+# Run:
+#   edim-dde-ai validate examples/agents/echo_agent.agent.yaml
+#   edim-dde-ai run echo_agent --yaml examples/agents/echo_agent.agent.yaml \
+#     --input '{"message":"hi"}'
+# =============================================================================
+
+# --- Identity (required) -----------------------------------------------------
+# agent_id: stable registry / invoke key (unique in-process).
 agent_id: echo_agent
+# display_name: human label in catalogs / UIs (defaults to agent_id if omitted).
 display_name: Echo Agent
+# version: integer definition version (bump when the graph contract changes).
 version: 1
+
+# --- Entry metadata (optional) -----------------------------------------------
+# Documented call style for tooling; does not change LangGraph compile today.
 entry:
-  method: invoke
-  sync: true
+  method: invoke   # intended surface: invoke | (future) stream
+  sync: true       # sync invoke expected
+
+# --- Graph (required) --------------------------------------------------------
+# Flat dict state: every node returns a partial update; keys shallow-merge.
 graph:
   nodes:
+    # id: unique within this agent. type: allowlisted factory (builtins or pack).
+    # Extra keys beyond id/type become NodeSpec.config for the factory.
     - id: greet
       type: set_value
+      # field: state key to write
       field: greeting
+      # value: literal (use template: "hi-{name}" for {placeholder} substitution)
       value: "hello"
+
     - id: finish
       type: echo_result
+      # from_fields: copy these state keys under result (and keep them top-level)
       from_fields: [greeting, message]
+
   edges:
+    # [source, target]. START/END are reserved endpoints (not node ids).
+    # Include exactly one [START, node] edge OR set graph.entry (or both if equal).
     - [START, greet]
     - [greet, finish]
     - [finish, END]

@@ -84,7 +84,9 @@ graph.runtime.MetadataAgent  (invoke / ainvoke)
 
 - Backed by `Registry[NodeFactory]` seeded from `nodes.builtin.BUILTIN_NODE_FACTORIES`.
 - `register_node(type_id, factory)` allowlists a node type.
-- Builtin types: `passthrough`, `set_value`, `echo_result`, `llm_chain`, `invoke_agent`, `rag.retrieve`, `hitl.gate`.
+- Builtin types: `passthrough`, `set_value`, `echo_result`, `llm_chain`,
+  `invoke_agent` (compile-time LangGraph subgraph embed), `rag.retrieve`,
+  `hitl.gate`.
 - Custom types are registered in application code before loading YAML.
 
 ### Agent registry (`registry/agents.py`)
@@ -95,6 +97,8 @@ graph.runtime.MetadataAgent  (invoke / ainvoke)
 ### Graph builder (`graph/builder.py`)
 
 - `GraphBuilder` adds nodes, entry, edges, conditional edges, then compiles.
+- `invoke_agent` nodes are special-cased: child graphs compile and attach via
+  `graph.subgraph` (native `add_node(compiled)` or mapped wrapper).
 - `build_graph(definition)` is the public function (flat dict state only).
 - `build_flat_graph` is a deprecated alias of `build_graph`.
 - Edges: `"START"` / `"END"` strings are reserved endpoints (`START` declares entry; `"END"` maps to LangGraph `END`). `graph.entry` is optional when a `[START, node]` edge is present.

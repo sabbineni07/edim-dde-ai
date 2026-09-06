@@ -1,30 +1,56 @@
+# =============================================================================
+# conditional_agent — conditional_edges + router
+# =============================================================================
+# Teaches: explicit conditional_edges (router id + mapping). Prefer this form
+# when you need a custom registered router; for simple field checks see
+# routes_sugar_agent.agent.yaml (graph.routes sugar).
+#
+# Run: python examples/run_conditional_agent.py
+# Invoke input: {"include_details": true}  → details branch
+#               {"include_details": false} → summary branch
+# =============================================================================
+
 agent_id: conditional_agent
 display_name: Conditional Agent
 version: 1
+
 entry:
   method: invoke
   sync: true
+
 graph:
+  # graph.entry: start node when you omit [START, …] or want an explicit id.
+  # Here it matches the decision node; edges below do not use START.
   entry: decide
+
   nodes:
     - id: decide
-      type: passthrough
+      type: passthrough   # no-op; exists so a router can branch after it
+
     - id: details
       type: set_value
       field: branch_message
       value: "full details path"
+
     - id: summary
       type: set_value
       field: branch_message
       value: "brief summary path"
+
   edges:
+    # Unconditional tails after each branch.
     - [details, END]
     - [summary, END]
+
   conditional_edges:
+    # source: node id whose outgoing edge is conditional
+    # router: registered router factory id (builtin: field_truthy, choice, …)
+    # config: passed to the router factory at compile time
+    # mapping: router label → destination node id or END
     - source: decide
       router: field_truthy
       config:
-        field: include_details
+        field: include_details   # state key; truthy → "yes", else "no"
       mapping:
         "yes": details
         "no": summary

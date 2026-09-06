@@ -1,23 +1,52 @@
+# =============================================================================
+# invoke_parent_demo — invoke_agent with mapped I/O (LangGraph pattern #1)
+# =============================================================================
+# Compile-time: child is built as a subgraph, then wrapped so only selected
+# keys flow in/out (different “schemas” / explicit contracts).
+#
+# YAML knobs on type: invoke_agent
+#   agent_id   (required) — registered child agent
+#   input_keys (optional) — parent keys passed to child (default: all / shared)
+#   output_map (optional) — child_key → parent_key (default: merge all)
+#   max_depth  (optional) — nest limit, default 3 (compile-time guard)
+#
+# Guards: refuse self-call, cycles, session-enabled children, max_depth.
+# Docs: edim-dde-domain/docs/framework/orchestration-topology.md
+#
+# Run (register child first):
+#   edim-dde-ai register examples/agents/invoke_agent_child.agent.yaml
+#   edim-dde-ai run invoke_parent_demo \
+#     --yaml examples/agents/invoke_agent_parent.agent.yaml --input '{}'
+# Expect: child_greeting == "hello-world"
+# =============================================================================
+
 agent_id: invoke_parent_demo
-display_name: Invoke-agent parent (demo)
+display_name: Invoke-agent parent (mapped I/O)
 version: 1
+
 metadata:
   owner: platform
   risk_tier: low
   lifecycle: draft
+
 graph:
   nodes:
     - id: seed
       type: set_value
       field: name
       value: world
+
     - id: call_child
       type: invoke_agent
+      # Target agent id (NOT overwritten with this parent's id at build time).
       agent_id: invoke_child_demo
+      # Only these parent keys are sent into the child subgraph.
       input_keys: [name]
+      # Child state key "greeting" is written back as parent "child_greeting".
       output_map:
         greeting: child_greeting
       max_depth: 3
+
   edges:
     - [START, seed]
     - [seed, call_child]

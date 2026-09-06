@@ -1,15 +1,28 @@
+# =============================================================================
+# prompt_inline — llm_chain with inline prompts / skills
+# =============================================================================
+# Teaches: prompts + skills blocks in YAML; llm_chain; attach_skills.
+# Requires an LLMProvider (set_llm_provider) or a registered chain invoker.
+# Run: python examples/run_llm_provider_demo.py
+# =============================================================================
+
 agent_id: prompt_inline
 display_name: Prompt inline demo
 version: 1
 
+# --- Inline prompts ----------------------------------------------------------
+# Shape: prompts.<chain_name>.<role> → string (roles typically system | human).
+# {placeholders} are filled from flat state at invoke time.
 prompts:
   chat:
     system: "You are a helpful assistant."
     human: "Question: {question}"
 
+# --- Inline skills -----------------------------------------------------------
+# Attached to the system prompt when llm_chain.attach_skills: true.
 skills:
-  - key: brevity
-    title: Brevity
+  - key: brevity          # stable id
+    title: Brevity        # display label
     content: "Keep it short."
 
 graph:
@@ -17,8 +30,12 @@ graph:
   nodes:
     - id: call
       type: llm_chain
+      # chain: must match a prompts.<chain> key (and/or registered invoker name)
       chain: chat
+      # output_key: state key for the model response (default llm_raw)
       output_key: llm_raw
+      # attach_skills: append registered skills for this agent_id
       attach_skills: true
+
   edges:
     - [call, END]

@@ -1,29 +1,57 @@
+# =============================================================================
+# hitl_demo — human-in-the-loop gate + resume
+# =============================================================================
+# Teaches: hitl.gate pause, hitl.enabled, resume fields (hitl_decision, …).
+# HTTP (API): POST /api/v1/sessions → waiting_hitl → POST …/resume
+# Framework docs: edim-dde-domain/docs/framework/hitl-resume.md
+#
+# Note: product agents (cluster_tuning / spark_rca) add hitl.decisions /
+# patch_allowlist for approve-modify vs approve-only policies.
+# =============================================================================
+
 agent_id: hitl_demo
 display_name: HITL resume demo
 version: 1
+
+# --- Catalog metadata (optional R1 block) ------------------------------------
 metadata:
-  owner: platform
-  risk_tier: low
-  lifecycle: draft
-  hitl_required: true
+  owner: platform           # free-text owner tag for catalogs
+  risk_tier: low            # low | medium | high
+  lifecycle: draft          # draft | review | approved | deprecated
+  hitl_required: true       # governance flag: “expects human approval”
+
+# --- HITL runtime policy -----------------------------------------------------
 hitl:
+  # enabled: when false, hitl.gate nodes pass through without pausing
   enabled: true
+  # decisions: optional allowlist (default all): approved | rejected | modified
+  # patch_target / patch_allowlist: required when "modified" is allowed
+  # (see product agents for full policy examples)
+
 graph:
   nodes:
     - id: draft
       type: set_value
       field: proposal
-      template: "resize-{name}"
+      template: "resize-{name}"   # invoke with {"name":"alpha"} → resize-alpha
+
     - id: approve
       type: hitl.gate
+      # prompt: shown to the operator / stored on the session
       prompt: Approve the proposed action?
+      # Optional: gate-specific overrides; agent hitl.* is the default policy
+
     - id: finish
       type: set_value
       field: status
+      # After resume, state includes hitl_decision / hitl_comment / session_id
       template: "done:{hitl_decision}"
+
     - id: pack
       type: echo_result
-      from_fields: [name, proposal, hitl_decision, hitl_comment, status, session_id]
+      from_fields:
+        [name, proposal, hitl_decision, hitl_comment, status, session_id]
+
   edges:
     - [START, draft]
     - [draft, approve]

@@ -1,0 +1,41 @@
+# =============================================================================
+# invoke_native_parent_demo — invoke_agent shared state (native subgraph)
+# =============================================================================
+# No input_keys / output_map → GraphBuilder attaches the compiled child with
+# LangGraph add_node(compiled) (shared flat AgentState channels).
+#
+# Use when parent and child intentionally share the same keys (here: name in,
+# greeting out). Prefer mapped parent YAML when you need an explicit contract.
+#
+# Register child first, then:
+#   edim-dde-ai run invoke_native_parent_demo \
+#     --yaml examples/agents/invoke_agent_native_parent.agent.yaml --input '{}'
+# Expect: name == "ada", greeting == "hello-ada"
+# =============================================================================
+
+agent_id: invoke_native_parent_demo
+display_name: Invoke-agent parent (native shared-state subgraph)
+version: 1
+
+metadata:
+  owner: platform
+  risk_tier: low
+  lifecycle: draft
+
+graph:
+  nodes:
+    - id: seed
+      type: set_value
+      field: name
+      value: ada
+
+    - id: call_child
+      type: invoke_agent
+      agent_id: invoke_child_demo
+      # Intentionally omit input_keys and output_map for native subgraph embed.
+      max_depth: 3
+
+  edges:
+    - [START, seed]
+    - [seed, call_child]
+    - [call_child, END]

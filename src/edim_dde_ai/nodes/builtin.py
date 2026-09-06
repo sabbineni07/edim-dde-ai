@@ -12,7 +12,8 @@ Public API:
   - ``set_value_factory`` — write a literal or ``{var}``-templated value
   - ``echo_result_factory`` — pack selected keys under ``result``
   - ``llm_chain_factory`` — chain invoker or LLMProvider + prompts
-  - ``invoke_agent_factory`` — nested agent call with depth guards
+  - ``invoke_agent_factory`` — legacy fallback; GraphBuilder embeds LangGraph
+    subgraphs at compile time (see ``graph.subgraph``)
   - ``rag_retrieve_factory`` — corpus search via RetrievalProvider
   - ``web_search_factory`` — opt-in bounded public-web search
   - ``hitl_gate_factory`` — pause for human approval (StateStore session)
@@ -22,7 +23,6 @@ Public API:
 
 from __future__ import annotations
 
-import contextvars
 import logging
 import re
 from typing import Any
@@ -36,10 +36,6 @@ from edim_dde_ai.registry.chains import get_chain_invoker, list_chain_invokers
 
 _TEMPLATE_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 logger = logging.getLogger(__name__)
-# Tracks nested invoke_agent depth across ContextVar boundaries (async-safe).
-_INVOKE_AGENT_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar(
-    "edim_invoke_agent_depth", default=0
-)
 
 
 def _substitute(template: str, state: dict[str, Any]) -> str:
@@ -142,90 +138,48 @@ def echo_result_factory(config: dict[str, Any]):
 
 
 def invoke_agent_factory(config: dict[str, Any]):
-    """Call another registered agent and merge selected outputs (BL-025).
+    """Legacy allowlist factory; ``GraphBuilder`` embeds subgraphs instead.
 
-    Builds a child input dict, invokes ``create_agent(target)``, then maps
-    child outputs back onto the parent state. Depth is tracked with a
-    ``ContextVar`` so nested invokes cannot recurse unbounded.
+    Kept so ``type: invoke_agent`` remains a registered node id. Prefer the
+    compile-time path in ``graph.subgraph`` (used by ``GraphBuilder.add_nodes``).
 
     Config:
       agent_id: str (required) — target agent id
       input_keys: list[str] — keys to pass (default: all parent state keys)
       output_map: dict[str, str] — child_key → parent_key (default: merge all)
       max_depth: int — nested invoke limit (default 3)
-      caller_agent_id: str — injected by GraphBuilder (parent agent)
-
-    Args:
-        config: See Config above. ``caller_agent_id`` is injected at build time.
-
-    Returns:
-        A node callable that returns mapped/merged child outputs, or ``{}``
-        when the child returns a non-dict.
-
-    Raises:
-        ValueError: Invalid config shapes.
-        DefinitionError: Depth exceeded or direct self-call.
-
-    Example YAML::
-
-        - id: sub
-          type: invoke_agent
-          agent_id: helper_agent
-          input_keys: [query]
-          output_map: {answer: helper_answer}
+      caller_agent_id: str — parent agent id when known
     """
-    target = config.get("agent_id")
-    if not isinstance(target, str) or not target.strip():
-        raise ValueError("invoke_agent requires non-empty 'agent_id'")
-    input_keys = config.get("input_keys")
-    if input_keys is not None and not isinstance(input_keys, list):
-        raise ValueError("invoke_agent.input_keys must be a list when set")
-    output_map = config.get("output_map")
-    if output_map is not None and not isinstance(output_map, dict):
-        raise ValueError("invoke_agent.output_map must be a mapping when set")
-    max_depth = int(config.get("max_depth", 3))
-    if max_depth < 1:
-        raise ValueError("invoke_agent.max_depth must be >= 1")
+    from edim_dde_ai.errors import DefinitionError
+    from edim_dde_ai.graph.subgraph import (
+        compile_child_subgraph,
+        mapped_subgraph_node,
+        parse_invoke_agent_config,
+    )
 
+    parsed = parse_invoke_agent_config(config)
+    target = parsed["target"]
     parent_agent_id = config.get("caller_agent_id")
-
-    def _node(state: dict[str, Any]) -> dict[str, Any]:
-        from edim_dde_ai.errors import DefinitionError
-        from edim_dde_ai.registry.agents import create_agent
-
-        depth = _INVOKE_AGENT_DEPTH.get()
-        if depth >= max_depth:
-            raise DefinitionError(
-                f"invoke_agent max_depth={max_depth} exceeded "
-                f"(target={target!r}, parent={parent_agent_id!r})"
-            )
-        # Direct self-call is always refused; deeper cycles still hit max_depth.
-        if parent_agent_id and parent_agent_id == target:
-            raise DefinitionError(
-                f"invoke_agent refuses direct self-call to {target!r}"
-            )
-
-        if input_keys is None:
-            child_in = dict(state)
-        else:
-            child_in = {k: state.get(k) for k in input_keys}
-
-        token = _INVOKE_AGENT_DEPTH.set(depth + 1)
-        try:
-            child_out = create_agent(target).invoke(child_in)
-        finally:
-            _INVOKE_AGENT_DEPTH.reset(token)
-
-        if not isinstance(child_out, dict):
-            return {}
-        if output_map:
-            return {
-                parent_key: child_out.get(child_key)
-                for child_key, parent_key in output_map.items()
-            }
-        return dict(child_out)
-
-    return _node
+    if isinstance(parent_agent_id, str) and parent_agent_id == target:
+        raise DefinitionError(
+            f"invoke_agent refuses direct self-call to {target!r}"
+        )
+    parent = (
+        parent_agent_id
+        if isinstance(parent_agent_id, str) and parent_agent_id.strip()
+        else "__invoke_agent_factory__"
+    )
+    compiled = compile_child_subgraph(
+        target,
+        parent_agent_id=parent,
+        embed_stack=(),
+        max_depth=parsed["max_depth"],
+    )
+    return mapped_subgraph_node(
+        compiled,
+        input_keys=parsed["input_keys"],
+        output_map=parsed["output_map"],
+    )
 
 
 def llm_chain_factory(config: dict[str, Any]):

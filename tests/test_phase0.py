@@ -80,6 +80,49 @@ def test_invoke_agent_spike():
     assert out.get("name") == "world"
 
 
+def test_invoke_agent_shared_state_native_subgraph():
+    """No I/O map → child attached via add_node(compiled) (shared AgentState)."""
+    register_from_dict(
+        {
+            "agent_id": "sg_child",
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "greet",
+                        "type": "set_value",
+                        "field": "greeting",
+                        "template": "hi-{name}",
+                    }
+                ],
+                "edges": [["START", "greet"], ["greet", "END"]],
+            },
+        }
+    )
+    register_from_dict(
+        {
+            "agent_id": "sg_parent",
+            "graph": {
+                "nodes": [
+                    {"id": "seed", "type": "set_value", "field": "name", "value": "ada"},
+                    {
+                        "id": "call_child",
+                        "type": "invoke_agent",
+                        "agent_id": "sg_child",
+                    },
+                ],
+                "edges": [
+                    ["START", "seed"],
+                    ["seed", "call_child"],
+                    ["call_child", "END"],
+                ],
+            },
+        }
+    )
+    out = create_agent("sg_parent").invoke({})
+    assert out.get("name") == "ada"
+    assert out.get("greeting") == "hi-ada"
+
+
 def test_invoke_agent_self_call_rejected():
     register_from_dict(
         {
@@ -97,7 +140,56 @@ def test_invoke_agent_self_call_rejected():
         }
     )
     with pytest.raises(DefinitionError, match="self-call"):
-        create_agent("selfish").invoke({})
+        create_agent("selfish")
+
+
+def test_invoke_agent_native_shared_state_example_yaml():
+    """examples/agents native parent embeds child via shared AgentState."""
+    from pathlib import Path
+
+    from edim_dde_ai.api.entrypoints import register_from_yaml
+
+    root = Path(__file__).resolve().parents[1] / "examples" / "agents"
+    register_from_yaml(root / "invoke_agent_child.agent.yaml")
+    register_from_yaml(root / "invoke_agent_native_parent.agent.yaml")
+    out = create_agent("invoke_native_parent_demo").invoke({})
+    assert out.get("name") == "ada"
+    assert out.get("greeting") == "hello-ada"
+
+
+def test_invoke_agent_cycle_rejected():
+    register_from_dict(
+        {
+            "agent_id": "cyc_a",
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "to_b",
+                        "type": "invoke_agent",
+                        "agent_id": "cyc_b",
+                    }
+                ],
+                "edges": [["START", "to_b"], ["to_b", "END"]],
+            },
+        }
+    )
+    register_from_dict(
+        {
+            "agent_id": "cyc_b",
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "to_a",
+                        "type": "invoke_agent",
+                        "agent_id": "cyc_a",
+                    }
+                ],
+                "edges": [["START", "to_a"], ["to_a", "END"]],
+            },
+        }
+    )
+    with pytest.raises(DefinitionError, match="cycle"):
+        create_agent("cyc_a")
 
 
 def test_langsmith_config_tags(monkeypatch):

@@ -1,7 +1,19 @@
+# =============================================================================
+# prompt_demo — llm_chain with content_dir (markdown prompts / skills)
+# =============================================================================
+# Teaches: content_dir layout instead of inline prompts.
+# Layout (relative to this YAML file unless absolute):
+#   content/prompts/{chain}.{role}.md   e.g. chat.system.md
+#   content/skills/{key}.md
+#
+# Run: python examples/run_llm_provider_demo.py  (or register + run with provider)
+# =============================================================================
+
 agent_id: prompt_demo
 display_name: Prompt directory demo
 version: 1
 
+# content_dir: path to prompts/ and skills/ trees (resolved vs YAML location).
 content_dir: ./content
 
 graph:
@@ -9,8 +21,9 @@ graph:
   nodes:
     - id: call
       type: llm_chain
-      chain: chat
+      chain: chat          # → content/prompts/chat.system.md + chat.human.md
       output_key: llm_raw
-      attach_skills: true
+      attach_skills: true  # → content/skills/*.md
+
   edges:
     - [call, END]

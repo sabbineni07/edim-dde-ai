@@ -1,26 +1,48 @@
+# =============================================================================
+# routes_sugar_agent — graph.routes sugar (same idea as conditional_agent)
+# =============================================================================
+# Teaches: author-friendly branching. Desugared to conditional_edges before
+# compile (see edim_dde_ai.core.routes_sugar). Prefer routes for simple
+# field ops; use conditional_edges when you need a custom router type.
+#
+# Run: python examples/run_routes_sugar_agent.py
+# =============================================================================
+
 agent_id: routes_sugar_agent
 display_name: Routes Sugar Agent
 version: 1
+
 entry:
   method: invoke
   sync: true
+
 graph:
   entry: decide
+
   nodes:
     - id: decide
       type: passthrough
+
     - id: details
       type: set_value
       field: branch_message
       value: "full details path"
+
     - id: summary
       type: set_value
       field: branch_message
       value: "brief summary path"
+
   edges:
     - [details, END]
     - [summary, END]
+
+  # routes: list of branch or switch rules (mutually exclusive with hand-written
+  # conditional_edges for the same source unless you merge carefully).
   routes:
+    # after / source: origin node id
+    # when: { field, op, … }  ops include truthy | equals | in | compare
+    # then / else: destination node ids (or END)
     - after: decide
       when:
         field: include_details

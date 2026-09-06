@@ -1,12 +1,30 @@
+# =============================================================================
+# invoke_child_demo — child agent used as a LangGraph subgraph
+# =============================================================================
+# Register this BEFORE the parent. Parent YAML references agent_id only;
+# at parent compile time the child is compiled and embedded (subgraph).
+#
+# Constraints for embed targets:
+#   - Prefer plain (non-session) agents — session-enabled children are refused.
+#   - Keep graphs small and reusable; parents own I/O mapping when schemas differ.
+#
+# Pair with:
+#   - invoke_agent_parent.agent.yaml       (mapped I/O — pattern #1)
+#   - invoke_agent_native_parent.agent.yaml (shared state — native add_node)
+# =============================================================================
+
 agent_id: invoke_child_demo
 display_name: Invoke-agent child (demo)
 version: 1
+
 graph:
   nodes:
     - id: greet
       type: set_value
       field: greeting
+      # Reads parent-provided "name" (mapped input_keys or shared state).
       template: "hello-{name}"
+
   edges:
     - [START, greet]
     - [greet, END]

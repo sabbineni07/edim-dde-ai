@@ -5,6 +5,10 @@ Business purpose:
   wrap nodes with HITL skip-until-resume, wire edges, then ``compile()``.
   All graphs use one flat dict state shape (shallow-merge reducer).
 
+  ``invoke_agent`` nodes are compile-time LangGraph subgraphs (see
+  ``graph.subgraph``): shared-state children use ``add_node(compiled)``;
+  mapped I/O uses a thin wrapper around the compiled child.
+
 Canonical compile order (plain and session graphs)::
 
     nodes → set_entry(…) → edges → compile
@@ -19,6 +23,7 @@ Public API:
 See also:
   ``graph.session_builder`` — ``build_session_graph`` ≈ build_graph + multi-turn
   modes + checkpointer (entry = ``session_prepare``).
+  ``graph.subgraph`` — ``invoke_agent`` → native / mapped subgraph attach.
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ from edim_dde_ai.core.bindings import (
     resolve_sql_warehouse_binding,
 )
 from edim_dde_ai.core.definition import AgentDefinition
+from edim_dde_ai.graph.subgraph import attach_invoke_agent_node
 from edim_dde_ai.hitl.decorator import NodeFn, skip_until_resume
 from edim_dde_ai.hitl.gate import apply_gate_build_config
 from edim_dde_ai.registry.nodes import get_node_factory
@@ -71,31 +77,41 @@ class GraphBuilder:
     after registering that preamble node (see ``build_session_graph``).
     """
 
-    def __init__(self, definition: AgentDefinition) -> None:
+    def __init__(
+        self,
+        definition: AgentDefinition,
+        *,
+        embed_stack: tuple[str, ...] = (),
+    ) -> None:
         self.definition = definition
+        # Agents above this definition when compiling as an ``invoke_agent`` child.
+        self._embed_stack = embed_stack
         self._builder: StateGraph = StateGraph(AgentState)
 
     def add_nodes(self) -> GraphBuilder:
         """Register each YAML node via its factory + ``skip_until_resume``.
 
-        Injects ``agent_id`` into config for prompt/LLM nodes. For
-        ``invoke_agent``, preserves YAML target ``agent_id`` and sets
-        ``caller_agent_id`` to the parent. For ``hitl.gate``, injects node id
-        and ``hitl.enabled``.
+        Injects ``agent_id`` into config for prompt/LLM nodes. ``invoke_agent``
+        is handled specially: the child is compiled and attached as a LangGraph
+        subgraph (native shared-state or mapped wrapper). For ``hitl.gate``,
+        injects node id and ``hitl.enabled``.
 
         Returns:
             ``self`` for chaining.
         """
         for node in self.definition.nodes:
+            if node.type == "invoke_agent":
+                attach_invoke_agent_node(
+                    add_node=self._builder.add_node,
+                    node=node,
+                    parent=self.definition,
+                    embed_stack=self._embed_stack,
+                )
+                continue
+
             factory = get_node_factory(node.type)
             cfg = dict(node.config)
             cfg.setdefault("agent_id", self.definition.agent_id)
-            # For invoke_agent, keep target in agent_id and pass caller separately.
-            if node.type == "invoke_agent":
-                cfg["caller_agent_id"] = self.definition.agent_id
-                # YAML uses agent_id for the *target*; do not overwrite with parent id.
-                if "agent_id" in node.config:
-                    cfg["agent_id"] = node.config["agent_id"]
             # Optional bindings.llm → inject into llm_chain config.
             if node.type == "llm_chain":
                 resolved = resolve_llm_binding(self.definition.bindings)
@@ -221,7 +237,12 @@ class GraphBuilder:
         return self._builder.compile()
 
 
-def build_graph(definition: AgentDefinition, *, checkpointer: Any | None = None):
+def build_graph(
+    definition: AgentDefinition,
+    *,
+    checkpointer: Any | None = None,
+    embed_stack: tuple[str, ...] = (),
+):
     """Compile a flat-state LangGraph graph from an agent definition.
 
     Assembly: ``nodes → set_entry(yaml) → edges → compile``.
@@ -234,12 +255,14 @@ def build_graph(definition: AgentDefinition, *, checkpointer: Any | None = None)
         definition: Validated ``AgentDefinition``.
         checkpointer: Optional LangGraph checkpointer (rarely needed here;
             session graphs attach it themselves).
+        embed_stack: When compiling as an ``invoke_agent`` child, parent agent
+            ids already on the stack (cycle / depth guards).
 
     Returns:
         Compiled LangGraph runnable (flat ``dict`` in/out).
     """
     return (
-        GraphBuilder(definition)
+        GraphBuilder(definition, embed_stack=embed_stack)
         .add_nodes()
         .set_entry()
         .add_edges()
@@ -248,7 +271,12 @@ def build_graph(definition: AgentDefinition, *, checkpointer: Any | None = None)
     )
 
 
-def build_flat_graph(definition: AgentDefinition, *, checkpointer: Any | None = None):
+def build_flat_graph(
+    definition: AgentDefinition,
+    *,
+    checkpointer: Any | None = None,
+    embed_stack: tuple[str, ...] = (),
+):
     """Deprecated alias of ``build_graph`` (flat is the only state shape).
 
     Prefer ``build_graph``. Kept for older import sites.
@@ -258,4 +286,6 @@ def build_flat_graph(definition: AgentDefinition, *, checkpointer: Any | None = 
         DeprecationWarning,
         stacklevel=2,
     )
-    return build_graph(definition, checkpointer=checkpointer)
+    return build_graph(
+        definition, checkpointer=checkpointer, embed_stack=embed_stack
+    )

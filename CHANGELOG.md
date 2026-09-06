@@ -24,11 +24,14 @@
 
 ### Added
 - Canonical agent JSON Schema (`schemas/agent.schema.json`) and extended-block validation (`schema` package)
-- Builtin `invoke_agent` node (nested agent call with depth limit + self-call guard)
+- Builtin `invoke_agent` embeds child agents as LangGraph subgraphs at compile
+  time (native `add_node(compiled)` when state is shared; mapped I/O wrapper
+  otherwise). Cycle / self-call / max_depth are compile-time guards.
 - **Pluggable observability providers** (`ObservabilityProvider`): `none` · `langsmith` · `mlflow`; `configure_observability_from_env` / `EDIM_OBSERVABILITY`
 - LangSmith/LangChain run config helpers; `MetadataAgent` merges provider config on invoke
 - Optional extras: `[observability]`, `[mlflow]`, `[schema]`, `[postgres]`, `[cosmos]`, `[redis]`
-- Example agents: `invoke_agent_parent` / `invoke_agent_child`
+- Example agents: annotated engineer templates under `examples/agents/`
+  (including mapped + native `invoke_agent` parents); see `examples/README.md`
 - **Pluggable control-plane StateStore** (`store/`): `memory` · `postgres` · `cosmos` · `redis`; `configure_state_store_from_env` / `sync_registered_agents_to_store`
 - **Pluggable RetrievalProvider** (`retrieval/`): `none` · `memory` · `faiss` · `azure_ai_search` · `databricks_vector`; builtin `rag.retrieve`; corpus registry
 - Optional extras: `[postgres]`, `[cosmos]`, `[redis]`, `[faiss]`, `[azure-search]`, `[databricks-vector]`, `[retrieval]`
