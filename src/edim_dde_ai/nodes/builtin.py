@@ -177,6 +177,7 @@ def invoke_agent_factory(config: dict[str, Any]):
     )
     return mapped_subgraph_node(
         compiled,
+        child_agent_id=target,
         input_keys=parsed["input_keys"],
         output_map=parsed["output_map"],
     )
