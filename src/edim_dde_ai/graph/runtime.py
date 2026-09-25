@@ -69,8 +69,15 @@ class MetadataAgent:
         return ""
 
     def _validate_follow_up(self, state: dict[str, Any], kwargs: dict[str, Any]) -> None:
-        """Reject conversation ids when the agent has ``memory.strategy: none``."""
+        """Reject conversation ids when the agent has ``memory.strategy: none``.
+
+        ADR-002 exception: when invoke ``config.metadata.edim_a2a`` is true,
+        ``conversation_id`` is an opaque multi-turn key (not checkpointer memory).
+        """
         if self.policy.enabled:
+            return
+        meta = (kwargs.get("config") or {}).get("metadata") or {}
+        if meta.get("edim_a2a"):
             return
         thread_id = self._thread_id(state, kwargs)
         if thread_id:

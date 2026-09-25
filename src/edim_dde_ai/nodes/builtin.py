@@ -18,6 +18,7 @@ Public API:
   - ``web_search_factory`` — opt-in bounded public-web search
   - ``hitl_gate_factory`` — pause for human approval (StateStore session)
   - ``hitl_apply_outcome_factory`` — post-gate approve/reject/modify markers
+  - ``a2a_conversation_turn_factory`` — multi-turn demo bag (ADR-002)
   - ``BUILTIN_NODE_FACTORIES`` — type_id → factory map (seeds the node registry)
 """
 
@@ -437,6 +438,39 @@ def web_search_factory(config: dict[str, Any]):
     return _node
 
 
+def a2a_conversation_turn_factory(config: dict[str, Any]):
+    """Record a multi-turn A2A message and write ``reply`` / ``turn_count``.
+
+    Process-local history keyed by ``conversation_id`` (ADR-002 smoke).
+
+    Config:
+      message_key: str — state key for inbound text (default ``message``)
+      reply_template: str — template for reply (default ``ack-{message}``)
+    """
+    from edim_dde_ai.a2a.turns import append_turn
+
+    message_key = str(config.get("message_key") or "message")
+    reply_template = str(config.get("reply_template") or "ack-{message}")
+
+    def _node(state: dict[str, Any]) -> dict[str, Any]:
+        cid = str(
+            state.get("conversation_id") or state.get("thread_id") or ""
+        ).strip()
+        if not cid:
+            raise ValueError("a2a.conversation_turn requires conversation_id")
+        message = str(state.get(message_key) or "").strip()
+        reply = _substitute(reply_template, {**state, "message": message})
+        meta = append_turn(cid, message, reply=reply)
+        return {
+            "reply": meta["reply"],
+            "turn_count": meta["turn_count"],
+            "conversation_id": cid,
+            "thread_id": cid,
+        }
+
+    return _node
+
+
 # Single source of truth for builtin type_id → factory (seeded into the node registry).
 # ``hitl.gate`` lives in ``edim_dde_ai.hitl.gate``; re-exported here so the registry
 # seed stays one map.
@@ -450,4 +484,5 @@ BUILTIN_NODE_FACTORIES = {
     "web.search": web_search_factory,
     "hitl.gate": hitl_gate_factory,
     "hitl.apply_outcome": hitl_apply_outcome_factory,
+    "a2a.conversation_turn": a2a_conversation_turn_factory,
 }

@@ -186,3 +186,57 @@ def test_mcp_dialer_stub():
     dialer = get_dialer("mcp")
     with pytest.raises(DialerError, match="not implemented"):
         dialer.invoke({"agent_id": "x"}, {})
+
+
+def test_http_dialer_retries_then_succeeds(monkeypatch):
+    """Flaky peer returns 503 once, then 200 — dialer retries."""
+    from edim_dde_ai.a2a.dialers.http import HttpDialer
+
+    monkeypatch.setenv("EDIM_A2A_HTTP_RETRIES", "2")
+    monkeypatch.setenv("EDIM_A2A_HTTP_TIMEOUT_S", "5")
+    monkeypatch.delenv("EDIM_A2A_TOKEN", raising=False)
+
+    hits = {"n": 0}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            hits["n"] += 1
+            length = int(self.headers.get("Content-Length") or 0)
+            self.rfile.read(length)
+            if hits["n"] == 1:
+                self.send_response(503)
+                self.end_headers()
+                return
+            out = {
+                "agent_id": "retry_leaf",
+                "request_id": "r",
+                "status": "completed",
+                "state": {"ok": True},
+            }
+            payload = json.dumps(out).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *_args):
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        out = HttpDialer().invoke(
+            {
+                "agent_id": "retry_leaf",
+                "endpoint": f"http://127.0.0.1:{port}",
+                "invoke_path": "/invoke",
+            },
+            {"x": 1},
+        )
+        assert out.get("ok") is True
+        assert hits["n"] == 2
+    finally:
+        server.shutdown()
