@@ -26,6 +26,11 @@ from edim_dde_ai.a2a.envelope import (
     parse_call_envelope,
 )
 from edim_dde_ai.a2a.resolve import ResolveDecision, resolve_invoke_target
+from edim_dde_ai.a2a.tasks import (
+    clear_a2a_tasks,
+    configure_task_store_from_env,
+    get_task,
+)
 from edim_dde_ai.a2a.turns import clear_conversation_turns
 
 __all__ = [
@@ -36,10 +41,13 @@ __all__ = [
     "STATUS_RUNNING",
     "build_call_envelope",
     "call_agent",
+    "clear_a2a_tasks",
     "clear_conversation_turns",
     "clear_runtime_bindings",
+    "configure_task_store_from_env",
     "get_binding",
     "get_dialer",
+    "get_task",
     "list_bindings",
     "list_transports",
     "needs_continue",
